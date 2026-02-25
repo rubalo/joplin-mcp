@@ -1,6 +1,6 @@
 """Tests for tools/notebooks.py - Notebook tool functions."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -10,6 +10,20 @@ def _get_tool_fn(tool):
     if hasattr(tool, 'fn'):
         return tool.fn
     return tool
+
+
+@pytest.fixture(autouse=True)
+def _no_whitelist():
+    """Disable notebook whitelist for all tests by default (backward compat).
+
+    Individual whitelist tests can override by patching _module_config themselves.
+    """
+    with patch(
+        "joplin_mcp.tools.notebooks._module_config"
+    ) as mock_cfg:
+        mock_cfg.has_notebook_whitelist = False
+        mock_cfg.notebook_whitelist = None
+        yield mock_cfg
 
 
 # === Tests for list_notebooks tool ===
