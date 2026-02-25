@@ -7,7 +7,7 @@ including mock Joplin server responses, test data, and testing utilities.
 
 import json
 from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -298,6 +298,41 @@ def reset_mocks():
     """Automatically reset all mocks after each test."""
     yield
     # This runs after each test to ensure clean state
+
+
+@pytest.fixture(autouse=True)
+def _no_notebook_whitelist():
+    """Disable notebook whitelist globally for all tests by default.
+
+    The real _module_config may pick up notebook_whitelist from the user's
+    config file, which would cause tools to reject mock notebooks that are
+    not in the whitelist. This fixture ensures backward compatibility.
+    Individual whitelist-specific tests can override by patching themselves.
+    """
+    targets = [
+        "joplin_mcp.tools.notes._module_config",
+        "joplin_mcp.tools.notebooks._module_config",
+    ]
+    patches = []
+    for target in targets:
+        try:
+            p = patch(target)
+            mock_cfg = p.start()
+            mock_cfg.has_notebook_whitelist = False
+            mock_cfg.notebook_whitelist = None
+            # Preserve other config attributes that tools may need
+            mock_cfg.should_show_content.return_value = True
+            mock_cfg.should_show_full_content.return_value = True
+            mock_cfg.get_max_preview_length.return_value = 300
+            mock_cfg.is_smart_toc_enabled.return_value = False
+            mock_cfg.get_smart_toc_threshold.return_value = 2000
+            mock_cfg.tools = {}
+            patches.append(p)
+        except Exception:
+            pass
+    yield
+    for p in patches:
+        p.stop()
 
 
 @pytest.fixture
