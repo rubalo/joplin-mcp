@@ -7,6 +7,7 @@ from joplin_mcp.fastmcp_server import (
     ItemType,
     JoplinIdType,
     RequiredStringType,
+    _module_config,
     create_tool,
     format_creation_success,
     format_delete_success,
@@ -14,6 +15,10 @@ from joplin_mcp.fastmcp_server import (
     format_update_success,
     get_joplin_client,
     invalidate_notebook_map_cache,
+)
+from joplin_mcp.notebook_utils import (
+    filter_accessible_notebooks,
+    validate_notebook_access,
 )
 
 
@@ -32,6 +37,10 @@ async def list_notebooks() -> str:
     client = get_joplin_client()
     fields_list = "id,title,created_time,updated_time,parent_id"
     notebooks = client.get_all_notebooks(fields=fields_list)
+    if _module_config.has_notebook_whitelist:
+        notebooks = filter_accessible_notebooks(
+            notebooks, whitelist_entries=_module_config.notebook_whitelist
+        )
     return format_item_list(notebooks, ItemType.notebook)
 
 
@@ -54,6 +63,15 @@ async def create_notebook(
         - create_notebook("Work Projects") - Create a top-level notebook
         - create_notebook("2024 Projects", "work_notebook_id") - Create a sub-notebook
     """
+
+    if _module_config.has_notebook_whitelist:
+        if parent_id:
+            validate_notebook_access(
+                parent_id.strip(),
+                whitelist_entries=_module_config.notebook_whitelist,
+            )
+        else:
+            raise ValueError("Notebook not accessible")
 
     client = get_joplin_client()
     notebook_kwargs = {"title": title}
@@ -78,6 +96,11 @@ async def update_notebook(
     Returns:
         str: Success message confirming the notebook was updated.
     """
+    if _module_config.has_notebook_whitelist:
+        validate_notebook_access(
+            notebook_id, whitelist_entries=_module_config.notebook_whitelist
+        )
+
     client = get_joplin_client()
     client.modify_notebook(notebook_id, title=title)
     # Invalidate cache in case the notebook moved/renamed
@@ -98,6 +121,11 @@ async def delete_notebook(
 
     Warning: This action is permanent and cannot be undone. All notes in the notebook will also be deleted.
     """
+    if _module_config.has_notebook_whitelist:
+        validate_notebook_access(
+            notebook_id, whitelist_entries=_module_config.notebook_whitelist
+        )
+
     client = get_joplin_client()
     client.delete_notebook(notebook_id)
     # Invalidate cache since structure changed
