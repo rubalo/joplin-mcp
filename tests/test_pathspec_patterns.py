@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from joplin_mcp.notebook_utils import (
-    _build_whitelist_spec,
+    _build_allowlist_spec,
     _has_negation_for_path,
-    _matches_whitelist,
+    _matches_allowlist,
     invalidate_notebook_map_cache,
     is_notebook_accessible,
 )
@@ -70,12 +70,12 @@ class TestExactMatchPattern:
         client_fn = _mock_client_fn(nb_map)
 
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["AI"], client_fn=client_fn
+            "nb1", allowlist_entries=["AI"], client_fn=client_fn
         ) is True
 
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
-            "nb2", whitelist_entries=["AI"], client_fn=client_fn
+            "nb2", allowlist_entries=["AI"], client_fn=client_fn
         ) is False
 
     def test_exact_match_nested_path(self):
@@ -87,12 +87,12 @@ class TestExactMatchPattern:
         client_fn = _mock_client_fn(nb_map)
 
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects/Work"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects/Work"], client_fn=client_fn
         ) is True
 
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
-            "nb2", whitelist_entries=["Projects/Work"], client_fn=client_fn
+            "nb2", allowlist_entries=["Projects/Work"], client_fn=client_fn
         ) is False
 
 
@@ -112,19 +112,19 @@ class TestWildcardPattern:
 
         # Direct child should match
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects/*"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects/*"], client_fn=client_fn
         ) is True
 
         # Grandchild should NOT match with single star alone
         # However, because "Projects/Work" matches, the ancestor check
-        # in _matches_whitelist will grant access to children.
-        # This is by design per D2 (parent whitelisting grants child access).
+        # in _matches_allowlist will grant access to children.
+        # This is by design per D2 (parent allowlisting grants child access).
         invalidate_notebook_map_cache()
         # The ancestor check means Projects/Work matches, and since
         # Projects/Work is an ancestor of Projects/Work/Tasks, it passes.
         # This is correct hierarchical behavior.
         result = is_notebook_accessible(
-            "nb2", whitelist_entries=["Projects/*"], client_fn=client_fn
+            "nb2", allowlist_entries=["Projects/*"], client_fn=client_fn
         )
         # Due to ancestor-based access (D2), grandchildren are accessible
         # when their parent matches a wildcard
@@ -149,7 +149,7 @@ class TestGlobstarPattern:
         for nb_id in ["nb1", "nb2", "nb3"]:
             invalidate_notebook_map_cache()
             assert is_notebook_accessible(
-                nb_id, whitelist_entries=["Projects/**"], client_fn=client_fn
+                nb_id, allowlist_entries=["Projects/**"], client_fn=client_fn
             ) is True, f"{nb_id} should be accessible under Projects/**"
 
     def test_globstar_does_not_match_sibling(self):
@@ -160,12 +160,12 @@ class TestGlobstarPattern:
         client_fn = _mock_client_fn(nb_map)
 
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects/**"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects/**"], client_fn=client_fn
         ) is False
 
 
-class TestNegationWithinWhitelist:
-    """Test negation patterns within whitelists."""
+class TestNegationWithinAllowlist:
+    """Test negation patterns within allowlists."""
 
     def setup_method(self):
         invalidate_notebook_map_cache()
@@ -180,14 +180,14 @@ class TestNegationWithinWhitelist:
 
         assert is_notebook_accessible(
             "nb1",
-            whitelist_entries=["Projects/**", "!Projects/Secret"],
+            allowlist_entries=["Projects/**", "!Projects/Secret"],
             client_fn=client_fn,
         ) is True
 
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
             "nb2",
-            whitelist_entries=["Projects/**", "!Projects/Secret"],
+            allowlist_entries=["Projects/**", "!Projects/Secret"],
             client_fn=client_fn,
         ) is False
 
@@ -202,7 +202,7 @@ class TestNegationWithinWhitelist:
         # because the negation check in _has_negation_for_path evaluates full path
         result = is_notebook_accessible(
             "nb1",
-            whitelist_entries=["Projects/**", "!Projects/Secret/Notes"],
+            allowlist_entries=["Projects/**", "!Projects/Secret/Notes"],
             client_fn=client_fn,
         )
         assert result is False
@@ -224,7 +224,7 @@ class TestPatternOrderMatters:
         # First negate, then re-include: last match wins
         result = is_notebook_accessible(
             "nb1",
-            whitelist_entries=["Projects/**", "!Projects/Secret", "Projects/Secret"],
+            allowlist_entries=["Projects/**", "!Projects/Secret", "Projects/Secret"],
             client_fn=client_fn,
         )
         assert result is True
@@ -238,7 +238,7 @@ class TestPatternOrderMatters:
 
         result = is_notebook_accessible(
             "nb1",
-            whitelist_entries=["Projects/**", "!Projects/Secret"],
+            allowlist_entries=["Projects/**", "!Projects/Secret"],
             client_fn=client_fn,
         )
         assert result is False
@@ -251,14 +251,14 @@ class TestNotebookIdLiteralPattern:
         invalidate_notebook_map_cache()
 
     def test_notebook_id_literal_pattern(self):
-        """32-char hex notebook IDs work as literal exact matches in whitelist."""
+        """32-char hex notebook IDs work as literal exact matches in allowlist."""
         hex_id = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
         nb_map = _make_notebook_map({hex_id: "Some/Hidden/Notebook"})
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
             hex_id,
-            whitelist_entries=[hex_id],
+            allowlist_entries=[hex_id],
             client_fn=client_fn,
         )
         assert result is True
@@ -272,23 +272,23 @@ class TestNotebookIdLiteralPattern:
 
         result = is_notebook_accessible(
             hex_id_2,
-            whitelist_entries=[hex_id_1],
+            allowlist_entries=[hex_id_1],
             client_fn=client_fn,
         )
         assert result is False
 
 
-class TestBuildWhitelistSpec:
-    """Test the _build_whitelist_spec function directly."""
+class TestBuildAllowlistSpec:
+    """Test the _build_allowlist_spec function directly."""
 
     def test_empty_entries_matches_nothing(self):
-        """An empty whitelist spec matches no paths."""
-        spec = _build_whitelist_spec([])
+        """An empty allowlist spec matches no paths."""
+        spec = _build_allowlist_spec([])
         assert spec.match_file("anything") is False
 
     def test_spec_with_patterns(self):
         """Spec built from patterns correctly matches paths."""
-        spec = _build_whitelist_spec(["Projects/*", "Work/**"])
+        spec = _build_allowlist_spec(["Projects/*", "Work/**"])
         assert spec.match_file("Projects/Foo") is True
         assert spec.match_file("Work/Deep/Nested") is True
         assert spec.match_file("Personal/Diary") is False

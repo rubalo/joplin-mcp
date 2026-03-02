@@ -301,24 +301,24 @@ def reset_mocks():
 
 
 @pytest.fixture
-def whitelist_config():
-    """Create a JoplinMCPConfig with notebook_whitelist for integration tests.
+def allowlist_config():
+    """Create a JoplinMCPConfig with notebook_allowlist for integration tests.
 
-    Returns a config with a realistic whitelist containing exact path, glob,
-    and negation patterns. Tests can override the whitelist attribute as needed.
+    Returns a config with a realistic allowlist containing exact path, glob,
+    and negation patterns. Tests can override the allowlist attribute as needed.
     """
     from joplin_mcp.config import JoplinMCPConfig
 
     config = JoplinMCPConfig(
-        token="test_token_for_whitelist",
-        notebook_whitelist=["Projects", "Projects/*", "AI"],
+        token="test_token_for_allowlist",
+        notebook_allowlist=["Projects", "Projects/*", "AI"],
     )
     return config
 
 
 @pytest.fixture
 def mock_notebook_hierarchy():
-    """Set up a mock notebook tree for whitelist integration tests.
+    """Set up a mock notebook tree for allowlist integration tests.
 
     Hierarchy:
         Root
@@ -365,13 +365,13 @@ def mock_notebook_hierarchy():
 
 
 @pytest.fixture(autouse=True)
-def _no_notebook_whitelist():
-    """Disable notebook whitelist globally for all tests by default.
+def _no_notebook_allowlist():
+    """Disable notebook allowlist globally for all tests by default.
 
-    The real _module_config may pick up notebook_whitelist from the user's
+    The real _module_config may pick up notebook_allowlist from the user's
     config file, which would cause tools to reject mock notebooks that are
-    not in the whitelist. This fixture ensures backward compatibility.
-    Individual whitelist-specific tests can override by patching themselves.
+    not in the allowlist. This fixture ensures backward compatibility.
+    Individual allowlist-specific tests can override by patching themselves.
     """
     targets = [
         "joplin_mcp.tools.notes._module_config",
@@ -382,8 +382,8 @@ def _no_notebook_whitelist():
         try:
             p = patch(target)
             mock_cfg = p.start()
-            mock_cfg.has_notebook_whitelist = False
-            mock_cfg.notebook_whitelist = None
+            mock_cfg.has_notebook_allowlist = False
+            mock_cfg.notebook_allowlist = None
             # Preserve other config attributes that tools may need
             mock_cfg.should_show_content.return_value = True
             mock_cfg.should_show_full_content.return_value = True

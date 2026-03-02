@@ -1,4 +1,4 @@
-"""Tests for note tool whitelist enforcement."""
+"""Tests for note tool allowlist enforcement."""
 
 from unittest.mock import MagicMock, patch
 
@@ -16,11 +16,11 @@ def _get_tool_fn(tool):
 
 
 @pytest.fixture
-def mock_whitelist_config():
-    """Enable whitelist in _module_config for note tools."""
+def mock_allowlist_config():
+    """Enable allowlist in _module_config for note tools."""
     with patch("joplin_mcp.tools.notes._module_config") as mock_cfg:
-        mock_cfg.has_notebook_whitelist = True
-        mock_cfg.notebook_whitelist = ["AI", "Projects/*"]
+        mock_cfg.has_notebook_allowlist = True
+        mock_cfg.notebook_allowlist = ["AI", "Projects/*"]
         # Preserve other config attributes that note tools may need
         mock_cfg.should_show_content.return_value = True
         mock_cfg.should_show_full_content.return_value = True
@@ -32,11 +32,11 @@ def mock_whitelist_config():
 
 
 @pytest.fixture
-def mock_no_whitelist_config():
-    """Explicitly disable whitelist in _module_config for backward compat tests."""
+def mock_no_allowlist_config():
+    """Explicitly disable allowlist in _module_config for backward compat tests."""
     with patch("joplin_mcp.tools.notes._module_config") as mock_cfg:
-        mock_cfg.has_notebook_whitelist = False
-        mock_cfg.notebook_whitelist = None
+        mock_cfg.has_notebook_allowlist = False
+        mock_cfg.notebook_allowlist = None
         mock_cfg.should_show_content.return_value = True
         mock_cfg.should_show_full_content.return_value = True
         mock_cfg.get_max_preview_length.return_value = 300
@@ -46,27 +46,27 @@ def mock_no_whitelist_config():
         yield mock_cfg
 
 
-# === Tests for create_note with whitelist ===
+# === Tests for create_note with allowlist ===
 
 
-class TestCreateNoteWhitelist:
-    """Tests for create_note whitelist validation."""
+class TestCreateNoteAllowlist:
+    """Tests for create_note allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_notebook_id_by_name")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_create_note_whitelisted_notebook(
+    async def test_create_note_allowlisted_notebook(
         self,
         mock_get_client,
         mock_get_nb_id,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when target notebook is whitelisted."""
+        """Should succeed when target notebook is allowlisted."""
         from joplin_mcp.tools.notes import create_note
 
-        mock_get_nb_id.return_value = "whitelisted_nb_id"
+        mock_get_nb_id.return_value = "allowlisted_nb_id"
         mock_client = MagicMock()
         mock_client.add_note.return_value = "new_note_id"
         mock_get_client.return_value = mock_client
@@ -75,8 +75,8 @@ class TestCreateNoteWhitelist:
         result = await fn(title="Test Note", notebook_name="AI", body="content")
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
         mock_client.add_note.assert_called_once()
         assert "SUCCESS" in result
@@ -85,14 +85,14 @@ class TestCreateNoteWhitelist:
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_notebook_id_by_name")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_create_note_non_whitelisted_notebook(
+    async def test_create_note_non_allowlisted_notebook(
         self,
         mock_get_client,
         mock_get_nb_id,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when target notebook is not whitelisted."""
+        """Should raise error when target notebook is not allowlisted."""
         from joplin_mcp.tools.notes import create_note
 
         mock_get_nb_id.return_value = "blocked_nb_id"
@@ -106,26 +106,26 @@ class TestCreateNoteWhitelist:
         mock_client.add_note.assert_not_called()
 
 
-# === Tests for get_note with whitelist ===
+# === Tests for get_note with allowlist ===
 
 
-class TestGetNoteWhitelist:
-    """Tests for get_note whitelist validation."""
+class TestGetNoteAllowlist:
+    """Tests for get_note allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_get_note_whitelisted(
+    async def test_get_note_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when note is in a whitelisted notebook."""
+        """Should succeed when note is in an allowlisted notebook."""
         from joplin_mcp.tools.notes import get_note
 
         mock_note = MagicMock()
-        mock_note.parent_id = "whitelisted_nb_id"
+        mock_note.parent_id = "allowlisted_nb_id"
         mock_note.title = "Test Note"
         mock_note.body = "content"
         mock_note.id = "12345678901234567890123456789012"
@@ -143,21 +143,21 @@ class TestGetNoteWhitelist:
         result = await fn(note_id="12345678901234567890123456789012")
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
         assert result is not None
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_get_note_non_whitelisted(
+    async def test_get_note_non_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when note is in a non-whitelisted notebook."""
+        """Should raise error when note is in a non-allowlisted notebook."""
         from joplin_mcp.tools.notes import get_note
 
         mock_note = MagicMock()
@@ -174,26 +174,26 @@ class TestGetNoteWhitelist:
             await fn(note_id="12345678901234567890123456789012")
 
 
-# === Tests for update_note with whitelist ===
+# === Tests for update_note with allowlist ===
 
 
-class TestUpdateNoteWhitelist:
-    """Tests for update_note whitelist validation."""
+class TestUpdateNoteAllowlist:
+    """Tests for update_note allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_update_note_whitelisted(
+    async def test_update_note_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when note is in a whitelisted notebook."""
+        """Should succeed when note is in an allowlisted notebook."""
         from joplin_mcp.tools.notes import update_note
 
         mock_note = MagicMock()
-        mock_note.parent_id = "whitelisted_nb_id"
+        mock_note.parent_id = "allowlisted_nb_id"
 
         mock_client = MagicMock()
         mock_client.get_note.return_value = mock_note
@@ -206,8 +206,8 @@ class TestUpdateNoteWhitelist:
         )
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
         mock_client.modify_note.assert_called_once()
         assert "SUCCESS" in result
@@ -215,13 +215,13 @@ class TestUpdateNoteWhitelist:
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_update_note_non_whitelisted(
+    async def test_update_note_non_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when note is in a non-whitelisted notebook."""
+        """Should raise error when note is in a non-allowlisted notebook."""
         from joplin_mcp.tools.notes import update_note
 
         mock_note = MagicMock()
@@ -243,26 +243,26 @@ class TestUpdateNoteWhitelist:
         mock_client.modify_note.assert_not_called()
 
 
-# === Tests for edit_note with whitelist ===
+# === Tests for edit_note with allowlist ===
 
 
-class TestEditNoteWhitelist:
-    """Tests for edit_note whitelist validation."""
+class TestEditNoteAllowlist:
+    """Tests for edit_note allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_edit_note_whitelisted(
+    async def test_edit_note_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when note is in a whitelisted notebook."""
+        """Should succeed when note is in an allowlisted notebook."""
         from joplin_mcp.tools.notes import edit_note
 
         mock_note = MagicMock()
-        mock_note.parent_id = "whitelisted_nb_id"
+        mock_note.parent_id = "allowlisted_nb_id"
         mock_note.body = "old text here"
         mock_note.title = "Test"
         mock_note.id = "12345678901234567890123456789012"
@@ -279,21 +279,21 @@ class TestEditNoteWhitelist:
         )
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
         assert "EDIT_NOTE" in result
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_edit_note_non_whitelisted(
+    async def test_edit_note_non_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when note is in a non-whitelisted notebook."""
+        """Should raise error when note is in a non-allowlisted notebook."""
         from joplin_mcp.tools.notes import edit_note
 
         mock_note = MagicMock()
@@ -317,26 +317,26 @@ class TestEditNoteWhitelist:
         mock_client.modify_note.assert_not_called()
 
 
-# === Tests for delete_note with whitelist ===
+# === Tests for delete_note with allowlist ===
 
 
-class TestDeleteNoteWhitelist:
-    """Tests for delete_note whitelist validation."""
+class TestDeleteNoteAllowlist:
+    """Tests for delete_note allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_delete_note_whitelisted(
+    async def test_delete_note_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when note is in a whitelisted notebook."""
+        """Should succeed when note is in an allowlisted notebook."""
         from joplin_mcp.tools.notes import delete_note
 
         mock_note = MagicMock()
-        mock_note.parent_id = "whitelisted_nb_id"
+        mock_note.parent_id = "allowlisted_nb_id"
 
         mock_client = MagicMock()
         mock_client.get_note.return_value = mock_note
@@ -346,8 +346,8 @@ class TestDeleteNoteWhitelist:
         result = await fn(note_id="12345678901234567890123456789012")
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
         mock_client.delete_note.assert_called_once()
         assert "SUCCESS" in result
@@ -355,13 +355,13 @@ class TestDeleteNoteWhitelist:
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_delete_note_non_whitelisted(
+    async def test_delete_note_non_allowlisted(
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when note is in a non-whitelisted notebook."""
+        """Should raise error when note is in a non-allowlisted notebook."""
         from joplin_mcp.tools.notes import delete_note
 
         mock_note = MagicMock()
@@ -380,11 +380,11 @@ class TestDeleteNoteWhitelist:
         mock_client.delete_note.assert_not_called()
 
 
-# === Tests for find_notes with whitelist ===
+# === Tests for find_notes with allowlist ===
 
 
-class TestFindNotesWhitelist:
-    """Tests for find_notes whitelist filtering."""
+class TestFindNotesAllowlist:
+    """Tests for find_notes allowlist filtering."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.is_notebook_accessible")
@@ -393,13 +393,13 @@ class TestFindNotesWhitelist:
         self,
         mock_get_client,
         mock_is_accessible,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Only notes in whitelisted notebooks should be returned."""
+        """Only notes in allowlisted notebooks should be returned."""
         from joplin_mcp.tools.notes import find_notes
 
         note_ok = MagicMock()
-        note_ok.parent_id = "whitelisted_nb_id"
+        note_ok.parent_id = "allowlisted_nb_id"
         note_ok.id = "note_ok_id_000000000000000000000"
         note_ok.title = "Good Note"
         note_ok.updated_time = 1609545600000
@@ -418,8 +418,8 @@ class TestFindNotesWhitelist:
         mock_client.get_all_notes.return_value = [note_ok, note_blocked]
         mock_get_client.return_value = mock_client
 
-        def accessible_side_effect(parent_id, whitelist_entries=None):
-            return parent_id == "whitelisted_nb_id"
+        def accessible_side_effect(parent_id, allowlist_entries=None):
+            return parent_id == "allowlisted_nb_id"
 
         mock_is_accessible.side_effect = accessible_side_effect
 
@@ -433,11 +433,11 @@ class TestFindNotesWhitelist:
         assert "Secret Note" not in result
 
 
-# === Tests for find_notes_with_tag with whitelist ===
+# === Tests for find_notes_with_tag with allowlist ===
 
 
-class TestFindNotesWithTagWhitelist:
-    """Tests for find_notes_with_tag whitelist filtering."""
+class TestFindNotesWithTagAllowlist:
+    """Tests for find_notes_with_tag allowlist filtering."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.is_notebook_accessible")
@@ -446,13 +446,13 @@ class TestFindNotesWithTagWhitelist:
         self,
         mock_get_client,
         mock_is_accessible,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Only notes in whitelisted notebooks returned for tag search."""
+        """Only notes in allowlisted notebooks returned for tag search."""
         from joplin_mcp.tools.notes import find_notes_with_tag
 
         note_ok = MagicMock()
-        note_ok.parent_id = "whitelisted_nb_id"
+        note_ok.parent_id = "allowlisted_nb_id"
         note_ok.id = "note_ok_id_000000000000000000000"
         note_ok.title = "Tagged Good Note"
         note_ok.updated_time = 1609545600000
@@ -471,8 +471,8 @@ class TestFindNotesWithTagWhitelist:
         mock_client.search_all.return_value = [note_ok, note_blocked]
         mock_get_client.return_value = mock_client
 
-        def accessible_side_effect(parent_id, whitelist_entries=None):
-            return parent_id == "whitelisted_nb_id"
+        def accessible_side_effect(parent_id, allowlist_entries=None):
+            return parent_id == "allowlisted_nb_id"
 
         mock_is_accessible.side_effect = accessible_side_effect
 
@@ -484,32 +484,32 @@ class TestFindNotesWithTagWhitelist:
         assert "Tagged Secret Note" not in result
 
 
-# === Tests for find_notes_in_notebook with whitelist ===
+# === Tests for find_notes_in_notebook with allowlist ===
 
 
-class TestFindNotesInNotebookWhitelist:
-    """Tests for find_notes_in_notebook whitelist validation."""
+class TestFindNotesInNotebookAllowlist:
+    """Tests for find_notes_in_notebook allowlist validation."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_notebook_id_by_name")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_find_notes_in_notebook_whitelisted(
+    async def test_find_notes_in_notebook_allowlisted(
         self,
         mock_get_client,
         mock_get_nb_id,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should succeed when target notebook is whitelisted."""
+        """Should succeed when target notebook is allowlisted."""
         from joplin_mcp.tools.notes import find_notes_in_notebook
 
-        mock_get_nb_id.return_value = "whitelisted_nb_id"
+        mock_get_nb_id.return_value = "allowlisted_nb_id"
 
         note = MagicMock()
-        note.parent_id = "whitelisted_nb_id"
+        note.parent_id = "allowlisted_nb_id"
         note.id = "note_id_00000000000000000000000"
-        note.title = "Note in Whitelisted"
+        note.title = "Note in Allowlisted"
         note.updated_time = 1609545600000
         note.is_todo = 0
         note.todo_completed = 0
@@ -522,23 +522,23 @@ class TestFindNotesInNotebookWhitelist:
         result = await fn(notebook_name="AI")
 
         mock_validate.assert_called_once_with(
-            "whitelisted_nb_id",
-            whitelist_entries=mock_whitelist_config.notebook_whitelist,
+            "allowlisted_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
         )
-        assert "Note in Whitelisted" in result
+        assert "Note in Allowlisted" in result
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.validate_notebook_access")
     @patch("joplin_mcp.tools.notes.get_notebook_id_by_name")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_find_notes_in_notebook_non_whitelisted(
+    async def test_find_notes_in_notebook_non_allowlisted(
         self,
         mock_get_client,
         mock_get_nb_id,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Should raise error when target notebook is not whitelisted."""
+        """Should raise error when target notebook is not allowlisted."""
         from joplin_mcp.tools.notes import find_notes_in_notebook
 
         mock_get_nb_id.return_value = "blocked_nb_id"
@@ -549,11 +549,11 @@ class TestFindNotesInNotebookWhitelist:
             await fn(notebook_name="Secret")
 
 
-# === Tests for get_all_notes with whitelist ===
+# === Tests for get_all_notes with allowlist ===
 
 
-class TestGetAllNotesWhitelist:
-    """Tests for get_all_notes whitelist filtering."""
+class TestGetAllNotesAllowlist:
+    """Tests for get_all_notes allowlist filtering."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.is_notebook_accessible")
@@ -562,13 +562,13 @@ class TestGetAllNotesWhitelist:
         self,
         mock_get_client,
         mock_is_accessible,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
-        """Only notes in whitelisted notebooks should be returned."""
+        """Only notes in allowlisted notebooks should be returned."""
         from joplin_mcp.tools.notes import get_all_notes
 
         note_ok = MagicMock()
-        note_ok.parent_id = "whitelisted_nb_id"
+        note_ok.parent_id = "allowlisted_nb_id"
         note_ok.id = "note_ok_id_000000000000000000000"
         note_ok.title = "Allowed Note"
         note_ok.updated_time = 1609545600000
@@ -587,8 +587,8 @@ class TestGetAllNotesWhitelist:
         mock_client.get_all_notes.return_value = [note_ok, note_blocked]
         mock_get_client.return_value = mock_client
 
-        def accessible_side_effect(parent_id, whitelist_entries=None):
-            return parent_id == "whitelisted_nb_id"
+        def accessible_side_effect(parent_id, allowlist_entries=None):
+            return parent_id == "allowlisted_nb_id"
 
         mock_is_accessible.side_effect = accessible_side_effect
 
@@ -603,19 +603,19 @@ class TestGetAllNotesWhitelist:
 # === Backward compatibility tests ===
 
 
-class TestNoteWhitelistBackwardCompat:
-    """Verify all note tools work normally when no whitelist is configured."""
+class TestNoteAllowlistBackwardCompat:
+    """Verify all note tools work normally when no allowlist is configured."""
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.get_notebook_id_by_name")
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_create_note_works_without_whitelist(
+    async def test_create_note_works_without_allowlist(
         self,
         mock_get_client,
         mock_get_nb_id,
-        mock_no_whitelist_config,
+        mock_no_allowlist_config,
     ):
-        """create_note succeeds without whitelist."""
+        """create_note succeeds without allowlist."""
         from joplin_mcp.tools.notes import create_note
 
         mock_get_nb_id.return_value = "nb_id"
@@ -629,12 +629,12 @@ class TestNoteWhitelistBackwardCompat:
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_get_note_works_without_whitelist(
+    async def test_get_note_works_without_allowlist(
         self,
         mock_get_client,
-        mock_no_whitelist_config,
+        mock_no_allowlist_config,
     ):
-        """get_note succeeds without whitelist."""
+        """get_note succeeds without allowlist."""
         from joplin_mcp.tools.notes import get_note
 
         mock_note = MagicMock()
@@ -657,12 +657,12 @@ class TestNoteWhitelistBackwardCompat:
 
     @pytest.mark.asyncio
     @patch("joplin_mcp.tools.notes.get_joplin_client")
-    async def test_delete_note_works_without_whitelist(
+    async def test_delete_note_works_without_allowlist(
         self,
         mock_get_client,
-        mock_no_whitelist_config,
+        mock_no_allowlist_config,
     ):
-        """delete_note succeeds without whitelist."""
+        """delete_note succeeds without allowlist."""
         from joplin_mcp.tools.notes import delete_note
 
         mock_client = MagicMock()
@@ -676,7 +676,7 @@ class TestNoteWhitelistBackwardCompat:
 # === Error message tests (D7) ===
 
 
-class TestNoteWhitelistErrorMessages:
+class TestNoteAllowlistErrorMessages:
     """Verify error messages are generic and do not leak notebook details."""
 
     @pytest.mark.asyncio
@@ -686,7 +686,7 @@ class TestNoteWhitelistErrorMessages:
         self,
         mock_get_client,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
         """Error message should not contain the notebook ID or name."""
         from joplin_mcp.tools.notes import get_note
@@ -720,7 +720,7 @@ class TestNoteWhitelistErrorMessages:
         mock_get_client,
         mock_get_nb_id,
         mock_validate,
-        mock_whitelist_config,
+        mock_allowlist_config,
     ):
         """Error message should not contain the target notebook name."""
         from joplin_mcp.tools.notes import create_note

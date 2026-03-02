@@ -311,7 +311,7 @@ class JoplinMCPConfig:
         tools: Optional[Dict[str, bool]] = None,
         content_exposure: Optional[Dict[str, Union[str, int]]] = None,
         import_settings: Optional[Dict[str, Any]] = None,
-        notebook_whitelist: Optional[List[str]] = None,
+        notebook_allowlist: Optional[List[str]] = None,
     ):
         """Initialize configuration with default values."""
         # Use centralized defaults if not provided
@@ -342,13 +342,13 @@ class JoplinMCPConfig:
         if import_settings:
             self.import_settings.update(import_settings)
 
-        # Initialize notebook whitelist (None = no restrictions, [] = deny all)
-        self.notebook_whitelist = notebook_whitelist
+        # Initialize notebook allowlist (None = no restrictions, [] = deny all)
+        self.notebook_allowlist = notebook_allowlist
 
     @property
-    def has_notebook_whitelist(self) -> bool:
-        """Return True when notebook whitelist is configured and non-empty."""
-        return bool(self.notebook_whitelist)
+    def has_notebook_allowlist(self) -> bool:
+        """Return True when notebook allowlist is configured and non-empty."""
+        return bool(self.notebook_allowlist)
 
     def is_tool_enabled(self, tool_name: str) -> bool:
         """Check if a specific tool is enabled."""
@@ -466,13 +466,13 @@ class JoplinMCPConfig:
                 max_preview_env, "max_preview_length"
             )
 
-        # Load notebook whitelist from environment (comma-separated)
-        notebook_whitelist = None
-        notebook_whitelist_env = os.environ.get(f"{prefix}NOTEBOOK_WHITELIST")
-        if notebook_whitelist_env is not None:
-            notebook_whitelist = [
+        # Load notebook allowlist from environment (comma-separated)
+        notebook_allowlist = None
+        notebook_allowlist_env = os.environ.get(f"{prefix}NOTEBOOK_ALLOWLIST")
+        if notebook_allowlist_env is not None:
+            notebook_allowlist = [
                 entry.strip()
-                for entry in notebook_whitelist_env.split(",")
+                for entry in notebook_allowlist_env.split(",")
                 if entry.strip()
             ]
 
@@ -484,7 +484,7 @@ class JoplinMCPConfig:
             verify_ssl=verify_ssl,
             tools=tools,
             content_exposure=content_exposure,
-            notebook_whitelist=notebook_whitelist,
+            notebook_allowlist=notebook_allowlist,
         )
 
     def validate(self) -> None:
@@ -561,7 +561,7 @@ class JoplinMCPConfig:
             "enabled_tools_count": len(self.get_enabled_tools()),
             "disabled_tools_count": len(self.get_disabled_tools()),
             "content_exposure": self.content_exposure.copy(),
-            "notebook_whitelist": self.notebook_whitelist,
+            "notebook_allowlist": self.notebook_allowlist,
         }
 
     def __repr__(self) -> str:
@@ -572,9 +572,9 @@ class JoplinMCPConfig:
         content_levels = {
             k: v for k, v in self.content_exposure.items() if k != "max_preview_length"
         }
-        whitelist_info = (
-            f"{len(self.notebook_whitelist)} patterns"
-            if self.notebook_whitelist
+        allowlist_info = (
+            f"{len(self.notebook_allowlist)} patterns"
+            if self.notebook_allowlist
             else "None"
         )
         return (
@@ -582,7 +582,7 @@ class JoplinMCPConfig:
             f"token={token_display}, timeout={self.timeout}, "
             f"verify_ssl={self.verify_ssl}, tools={enabled_count}/{total_count} enabled, "
             f"content_exposure={content_levels}, "
-            f"notebook_whitelist={whitelist_info})"
+            f"notebook_allowlist={allowlist_info})"
         )
 
     @classmethod
@@ -826,27 +826,27 @@ class JoplinMCPConfig:
                     f"Invalid data type for 'import_settings': expected dictionary, got {type(data['import_settings'])}"
                 )
 
-        # Notebook whitelist - must be a list of strings or None
-        if "notebook_whitelist" in data:
-            if data["notebook_whitelist"] is None:
-                # Explicit null = no whitelist (no restrictions)
-                validated["notebook_whitelist"] = None
-            elif isinstance(data["notebook_whitelist"], list):
-                whitelist = []
-                for i, entry in enumerate(data["notebook_whitelist"]):
+        # Notebook allowlist - must be a list of strings or None
+        if "notebook_allowlist" in data:
+            if data["notebook_allowlist"] is None:
+                # Explicit null = no allowlist (no restrictions)
+                validated["notebook_allowlist"] = None
+            elif isinstance(data["notebook_allowlist"], list):
+                allowlist = []
+                for i, entry in enumerate(data["notebook_allowlist"]):
                     if not isinstance(entry, str):
                         raise ConfigError(
-                            f"Invalid type for notebook_whitelist[{i}]: "
+                            f"Invalid type for notebook_allowlist[{i}]: "
                             f"expected string, got {type(entry)}"
                         )
                     stripped = entry.strip()
                     if stripped:
-                        whitelist.append(stripped)
-                validated["notebook_whitelist"] = whitelist
+                        allowlist.append(stripped)
+                validated["notebook_allowlist"] = allowlist
             else:
                 raise ConfigError(
-                    f"Invalid data type for 'notebook_whitelist': "
-                    f"expected list, got {type(data['notebook_whitelist'])}"
+                    f"Invalid data type for 'notebook_allowlist': "
+                    f"expected list, got {type(data['notebook_allowlist'])}"
                 )
 
         return validated
@@ -912,12 +912,12 @@ class JoplinMCPConfig:
         if "import_settings" in overrides and isinstance(overrides["import_settings"], dict):
             merged_import_settings.update(overrides["import_settings"])
 
-        # Merge notebook whitelist: env overrides file if explicitly set
-        merged_notebook_whitelist = config.notebook_whitelist
-        if f"{prefix}NOTEBOOK_WHITELIST" in os.environ:
-            merged_notebook_whitelist = env_config.notebook_whitelist
-        if "notebook_whitelist" in overrides:
-            merged_notebook_whitelist = overrides["notebook_whitelist"]
+        # Merge notebook allowlist: env overrides file if explicitly set
+        merged_notebook_allowlist = config.notebook_allowlist
+        if f"{prefix}NOTEBOOK_ALLOWLIST" in os.environ:
+            merged_notebook_allowlist = env_config.notebook_allowlist
+        if "notebook_allowlist" in overrides:
+            merged_notebook_allowlist = overrides["notebook_allowlist"]
 
         merged_data = {
             "host": get_value(
@@ -942,7 +942,7 @@ class JoplinMCPConfig:
             "tools": merged_tools,
             "content_exposure": merged_content_exposure,
             "import_settings": merged_import_settings,
-            "notebook_whitelist": merged_notebook_whitelist,
+            "notebook_allowlist": merged_notebook_allowlist,
         }
 
         return cls(**merged_data)

@@ -1,4 +1,4 @@
-"""Tests for notebook whitelist access control and pathspec matching."""
+"""Tests for notebook allowlist access control and pathspec matching."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -63,51 +63,51 @@ def _mock_client_fn(nb_map):
     return lambda: mock_client
 
 
-class TestNoWhitelistBehavior:
-    """Test behavior when no whitelist is configured."""
+class TestNoAllowlistBehavior:
+    """Test behavior when no allowlist is configured."""
 
     def setup_method(self):
         """Clear caches before each test."""
         invalidate_notebook_map_cache()
 
-    def test_none_whitelist_denies_access(self):
-        """When whitelist_entries is None, is_notebook_accessible returns False (deny by default)."""
+    def test_none_allowlist_denies_access(self):
+        """When allowlist_entries is None, is_notebook_accessible returns False (deny by default)."""
         nb_map = _make_notebook_map({"nb1": "Projects/Work"})
         client_fn = _mock_client_fn(nb_map)
 
-        result = is_notebook_accessible("nb1", whitelist_entries=None, client_fn=client_fn)
+        result = is_notebook_accessible("nb1", allowlist_entries=None, client_fn=client_fn)
 
         assert result is False
 
-    def test_empty_whitelist_denies_access(self):
-        """When whitelist_entries is [], is_notebook_accessible returns False (deny all)."""
+    def test_empty_allowlist_denies_access(self):
+        """When allowlist_entries is [], is_notebook_accessible returns False (deny all)."""
         nb_map = _make_notebook_map({"nb1": "Projects/Work"})
         client_fn = _mock_client_fn(nb_map)
 
-        result = is_notebook_accessible("nb1", whitelist_entries=[], client_fn=client_fn)
+        result = is_notebook_accessible("nb1", allowlist_entries=[], client_fn=client_fn)
 
         assert result is False
 
 
 class TestExactPathMatching:
-    """Test exact path matching in the whitelist."""
+    """Test exact path matching in the allowlist."""
 
     def setup_method(self):
         invalidate_notebook_map_cache()
 
     def test_exact_path_match(self):
-        """Notebook at 'Projects/Work' is accessible when whitelist has 'Projects/Work'."""
+        """Notebook at 'Projects/Work' is accessible when allowlist has 'Projects/Work'."""
         nb_map = _make_notebook_map({"nb1": "Projects/Work"})
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects/Work"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects/Work"], client_fn=client_fn
         )
 
         assert result is True
 
     def test_exact_path_no_match(self):
-        """Notebook at 'Personal/Diary' is denied when whitelist only has 'Projects/Work'."""
+        """Notebook at 'Personal/Diary' is denied when allowlist only has 'Projects/Work'."""
         nb_map = _make_notebook_map({
             "nb1": "Projects/Work",
             "nb2": "Personal/Diary",
@@ -115,7 +115,7 @@ class TestExactPathMatching:
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
-            "nb2", whitelist_entries=["Projects/Work"], client_fn=client_fn
+            "nb2", allowlist_entries=["Projects/Work"], client_fn=client_fn
         )
 
         assert result is False
@@ -126,7 +126,7 @@ class TestExactPathMatching:
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
-            "nonexistent", whitelist_entries=["Projects/Work"], client_fn=client_fn
+            "nonexistent", allowlist_entries=["Projects/Work"], client_fn=client_fn
         )
 
         assert result is False
@@ -147,12 +147,12 @@ class TestWildcardMatching:
         client_fn = _mock_client_fn(nb_map)
 
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects/*"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects/*"], client_fn=client_fn
         ) is True
 
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
-            "nb2", whitelist_entries=["Projects/*"], client_fn=client_fn
+            "nb2", allowlist_entries=["Projects/*"], client_fn=client_fn
         ) is True
 
     def test_double_star_match(self):
@@ -164,39 +164,39 @@ class TestWildcardMatching:
         client_fn = _mock_client_fn(nb_map)
 
         assert is_notebook_accessible(
-            "nb1", whitelist_entries=["**/Archive"], client_fn=client_fn
+            "nb1", allowlist_entries=["**/Archive"], client_fn=client_fn
         ) is True
 
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
-            "nb2", whitelist_entries=["**/Archive"], client_fn=client_fn
+            "nb2", allowlist_entries=["**/Archive"], client_fn=client_fn
         ) is True
 
 
 class TestHierarchicalAccess:
-    """Test that parent whitelisting grants child access (per D2)."""
+    """Test that parent allowlisting grants child access (per D2)."""
 
     def setup_method(self):
         invalidate_notebook_map_cache()
 
     def test_parent_grants_child_access(self):
-        """Whitelisting 'Projects' grants access to 'Projects/Work/Tasks'."""
+        """Allowlisting 'Projects' grants access to 'Projects/Work/Tasks'."""
         nb_map = _make_notebook_map({"nb1": "Projects/Work/Tasks"})
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects"], client_fn=client_fn
         )
 
         assert result is True
 
     def test_parent_grants_direct_child_access(self):
-        """Whitelisting 'Projects' grants access to 'Projects/Work'."""
+        """Allowlisting 'Projects' grants access to 'Projects/Work'."""
         nb_map = _make_notebook_map({"nb1": "Projects/Work"})
         client_fn = _mock_client_fn(nb_map)
 
         result = is_notebook_accessible(
-            "nb1", whitelist_entries=["Projects"], client_fn=client_fn
+            "nb1", allowlist_entries=["Projects"], client_fn=client_fn
         )
 
         assert result is True
@@ -219,7 +219,7 @@ class TestNegationPatterns:
         # Projects/Work should be accessible
         assert is_notebook_accessible(
             "nb1",
-            whitelist_entries=["Projects/*", "!Projects/Secret"],
+            allowlist_entries=["Projects/*", "!Projects/Secret"],
             client_fn=client_fn,
         ) is True
 
@@ -227,7 +227,7 @@ class TestNegationPatterns:
         invalidate_notebook_map_cache()
         assert is_notebook_accessible(
             "nb2",
-            whitelist_entries=["Projects/*", "!Projects/Secret"],
+            allowlist_entries=["Projects/*", "!Projects/Secret"],
             client_fn=client_fn,
         ) is False
 
@@ -246,7 +246,7 @@ class TestValidateNotebookAccess:
         with pytest.raises(ValueError, match="Notebook not accessible"):
             validate_notebook_access(
                 "nb1",
-                whitelist_entries=["Projects/*"],
+                allowlist_entries=["Projects/*"],
                 client_fn=client_fn,
             )
 
@@ -258,7 +258,7 @@ class TestValidateNotebookAccess:
         with pytest.raises(ValueError) as exc_info:
             validate_notebook_access(
                 "abc12345678901234567890123456789",
-                whitelist_entries=["Projects/*"],
+                allowlist_entries=["Projects/*"],
                 client_fn=client_fn,
             )
 
@@ -275,7 +275,7 @@ class TestValidateNotebookAccess:
         # Should not raise
         validate_notebook_access(
             "nb1",
-            whitelist_entries=["Projects/*"],
+            allowlist_entries=["Projects/*"],
             client_fn=client_fn,
         )
 
@@ -303,7 +303,7 @@ class TestFilterAccessibleNotebooks:
 
         result = filter_accessible_notebooks(
             notebooks,
-            whitelist_entries=["Projects/*"],
+            allowlist_entries=["Projects/*"],
             client_fn=client_fn,
         )
 
@@ -312,44 +312,44 @@ class TestFilterAccessibleNotebooks:
         assert "nb3" in result_ids
         assert "nb2" not in result_ids
 
-    def test_filter_with_none_whitelist_returns_empty(self):
-        """filter_accessible_notebooks returns empty list when whitelist is None."""
+    def test_filter_with_none_allowlist_returns_empty(self):
+        """filter_accessible_notebooks returns empty list when allowlist is None."""
         notebooks = [SimpleNamespace(id="nb1", title="Work")]
 
-        result = filter_accessible_notebooks(notebooks, whitelist_entries=None)
+        result = filter_accessible_notebooks(notebooks, allowlist_entries=None)
 
         assert result == []
 
-    def test_filter_with_empty_whitelist_returns_empty(self):
-        """filter_accessible_notebooks returns empty list when whitelist is []."""
+    def test_filter_with_empty_allowlist_returns_empty(self):
+        """filter_accessible_notebooks returns empty list when allowlist is []."""
         notebooks = [SimpleNamespace(id="nb1", title="Work")]
 
-        result = filter_accessible_notebooks(notebooks, whitelist_entries=[])
+        result = filter_accessible_notebooks(notebooks, allowlist_entries=[])
 
         assert result == []
 
 
 class TestCacheInvalidation:
-    """Test cache invalidation clears whitelist spec."""
+    """Test cache invalidation clears allowlist spec."""
 
     def setup_method(self):
         invalidate_notebook_map_cache()
 
     def test_cache_invalidation(self):
-        """invalidate_notebook_map_cache clears both notebook map and whitelist spec caches."""
-        from joplin_mcp.notebook_utils import _NOTEBOOK_MAP_CACHE, _WHITELIST_SPEC_CACHE
+        """invalidate_notebook_map_cache clears both notebook map and allowlist spec caches."""
+        from joplin_mcp.notebook_utils import _NOTEBOOK_MAP_CACHE, _ALLOWLIST_SPEC_CACHE
 
         # Populate caches with dummy data
         _NOTEBOOK_MAP_CACHE["built_at"] = 999999.0
         _NOTEBOOK_MAP_CACHE["map"] = {"fake": "data"}
-        _WHITELIST_SPEC_CACHE["built_at"] = 999999.0
-        _WHITELIST_SPEC_CACHE["spec"] = "fake_spec"
-        _WHITELIST_SPEC_CACHE["entries"] = ["fake"]
+        _ALLOWLIST_SPEC_CACHE["built_at"] = 999999.0
+        _ALLOWLIST_SPEC_CACHE["spec"] = "fake_spec"
+        _ALLOWLIST_SPEC_CACHE["entries"] = ["fake"]
 
         invalidate_notebook_map_cache()
 
         assert _NOTEBOOK_MAP_CACHE["built_at"] == 0.0
         assert _NOTEBOOK_MAP_CACHE["map"] is None
-        assert _WHITELIST_SPEC_CACHE["built_at"] == 0.0
-        assert _WHITELIST_SPEC_CACHE["spec"] is None
-        assert _WHITELIST_SPEC_CACHE["entries"] is None
+        assert _ALLOWLIST_SPEC_CACHE["built_at"] == 0.0
+        assert _ALLOWLIST_SPEC_CACHE["spec"] is None
+        assert _ALLOWLIST_SPEC_CACHE["entries"] is None

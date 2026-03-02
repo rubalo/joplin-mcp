@@ -37,9 +37,9 @@ async def list_notebooks() -> str:
     client = get_joplin_client()
     fields_list = "id,title,created_time,updated_time,parent_id"
     notebooks = client.get_all_notebooks(fields=fields_list)
-    if _module_config.has_notebook_whitelist:
+    if _module_config.has_notebook_allowlist:
         notebooks = filter_accessible_notebooks(
-            notebooks, whitelist_entries=_module_config.notebook_whitelist
+            notebooks, allowlist_entries=_module_config.notebook_allowlist
         )
     return format_item_list(notebooks, ItemType.notebook)
 
@@ -64,11 +64,11 @@ async def create_notebook(
         - create_notebook("2024 Projects", "work_notebook_id") - Create a sub-notebook
     """
 
-    if _module_config.has_notebook_whitelist:
+    if _module_config.has_notebook_allowlist:
         if parent_id:
             validate_notebook_access(
                 parent_id.strip(),
-                whitelist_entries=_module_config.notebook_whitelist,
+                allowlist_entries=_module_config.notebook_allowlist,
             )
         else:
             raise ValueError("Notebook not accessible")
@@ -96,9 +96,9 @@ async def update_notebook(
     Returns:
         str: Success message confirming the notebook was updated.
     """
-    if _module_config.has_notebook_whitelist:
+    if _module_config.has_notebook_allowlist:
         validate_notebook_access(
-            notebook_id, whitelist_entries=_module_config.notebook_whitelist
+            notebook_id, allowlist_entries=_module_config.notebook_allowlist
         )
 
     client = get_joplin_client()
@@ -121,9 +121,9 @@ async def delete_notebook(
 
     Warning: This action is permanent and cannot be undone. All notes in the notebook will also be deleted.
     """
-    if _module_config.has_notebook_whitelist:
+    if _module_config.has_notebook_allowlist:
         validate_notebook_access(
-            notebook_id, whitelist_entries=_module_config.notebook_whitelist
+            notebook_id, allowlist_entries=_module_config.notebook_allowlist
         )
 
     client = get_joplin_client()
