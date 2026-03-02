@@ -4,7 +4,11 @@ import logging
 import os
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from joplin_mcp.config import JoplinMCPConfig
+    from joppy.client_api import ClientApi
 
 import pathspec
 
@@ -499,3 +503,212 @@ def get_notebook_id_by_name(name: str) -> str:
         fetch_fn=client.get_all_notebooks,
         fields="id,title,created_time,updated_time,parent_id",
     )
+
+
+# === STARTUP VALIDATION ===
+
+_DEFAULT_NOTEBOOK_NAME = "MCP Access"
+
+
+def validate_whitelist_at_startup(
+    config: "JoplinMCPConfig",
+    client: "ClientApi",
+) -> None:
+    """Validate and log whitelist configuration at server startup.
+
+    Resolves each whitelist entry, logs accessible notebooks, warns about
+    non-existent entries, and pre-populates caches. Never raises — the
+    server always starts successfully regardless of whitelist validity.
+
+    When the whitelist is configured but resolves to zero accessible
+    notebooks, a default "MCP Access" notebook is auto-created (D9).
+
+    Args:
+        config: The server configuration object.
+        client: An initialized Joplin ClientApi instance.
+    """
+    try:
+        _validate_whitelist_at_startup_inner(config, client)
+    except Exception:
+        # Safety net: never prevent server startup (D3, D10)
+        logger.warning(
+            "Unexpected error during whitelist validation; "
+            "server will continue without validated whitelist",
+            exc_info=True,
+        )
+
+
+def _validate_whitelist_at_startup_inner(
+    config: "JoplinMCPConfig",
+    client: "ClientApi",
+) -> None:
+    """Inner implementation for validate_whitelist_at_startup."""
+    whitelist = config.notebook_whitelist
+
+    # No whitelist configured — all notebooks accessible
+    if whitelist is None:
+        logger.info(
+            "No notebook whitelist configured -- all notebooks accessible"
+        )
+        return
+
+    # Whitelist is configured (could be empty list or populated)
+    if not whitelist:
+        logger.warning(
+            "Notebook whitelist is configured but empty -- "
+            "no notebooks are accessible"
+        )
+
+    # Build a fresh notebook map so we can resolve entries
+    client_fn = lambda: client  # noqa: E731
+    nb_map = get_notebook_map_cached(force_refresh=True, client_fn=client_fn)
+
+    # Build reverse lookup: path -> id
+    path_to_id: Dict[str, str] = {}
+    for nb_id in nb_map:
+        path = _compute_notebook_path(nb_id, nb_map, sep="/")
+        if path:
+            path_to_id[path] = nb_id
+
+    resolved_entries: List[str] = []
+    unresolved_entries: List[str] = []
+
+    for entry in whitelist:
+        entry_stripped = entry.strip()
+        if not entry_stripped:
+            continue
+
+        # Negation patterns (e.g. "!Secret") — just log them
+        if entry_stripped.startswith("!"):
+            logger.info(
+                "Whitelist negation pattern: %s", entry_stripped
+            )
+            resolved_entries.append(entry_stripped)
+            continue
+
+        # Check if entry is a 32-char hex ID
+        if _HEX_ID_RE.match(entry_stripped):
+            if entry_stripped in nb_map:
+                path = _compute_notebook_path(
+                    entry_stripped, nb_map, sep="/"
+                )
+                logger.info(
+                    "Whitelist entry resolved: ID %s -> %s",
+                    entry_stripped,
+                    path or "(root)",
+                )
+                resolved_entries.append(entry_stripped)
+            else:
+                logger.warning(
+                    "Whitelist entry not found: ID %s does not match "
+                    "any existing notebook",
+                    entry_stripped,
+                )
+                unresolved_entries.append(entry_stripped)
+            continue
+
+        # Check if entry is a glob pattern
+        has_glob = any(c in entry_stripped for c in ("*", "?"))
+        if has_glob:
+            # Count how many existing paths match this pattern
+            pattern_spec = _build_whitelist_spec([entry_stripped])
+            match_count = sum(
+                1 for p in path_to_id if pattern_spec.match_file(p)
+            )
+            logger.info(
+                "Whitelist glob pattern: %s (matches %d notebook%s)",
+                entry_stripped,
+                match_count,
+                "" if match_count == 1 else "s",
+            )
+            if match_count == 0:
+                logger.warning(
+                    "Whitelist glob pattern matches no existing "
+                    "notebooks: %s",
+                    entry_stripped,
+                )
+                unresolved_entries.append(entry_stripped)
+            else:
+                resolved_entries.append(entry_stripped)
+            continue
+
+        # Literal path — try exact match first, then case-insensitive
+        if entry_stripped in path_to_id:
+            logger.info(
+                "Whitelist entry resolved: '%s' -> ID %s",
+                entry_stripped,
+                path_to_id[entry_stripped],
+            )
+            resolved_entries.append(entry_stripped)
+        else:
+            # Case-insensitive fallback
+            lower_entry = entry_stripped.lower()
+            matched = False
+            for path, nb_id in path_to_id.items():
+                if path.lower() == lower_entry:
+                    logger.info(
+                        "Whitelist entry resolved (case-insensitive): "
+                        "'%s' -> '%s' (ID %s)",
+                        entry_stripped,
+                        path,
+                        nb_id,
+                    )
+                    resolved_entries.append(entry_stripped)
+                    matched = True
+                    break
+            if not matched:
+                logger.warning(
+                    "Whitelist entry not found: '%s' does not match "
+                    "any existing notebook path",
+                    entry_stripped,
+                )
+                unresolved_entries.append(entry_stripped)
+
+    # Pre-populate the whitelist spec cache (D6)
+    _get_whitelist_spec(whitelist, force_refresh=True)
+
+    # Summary logging
+    if resolved_entries:
+        logger.info(
+            "Whitelist validation complete: %d resolved, %d unresolved",
+            len(resolved_entries),
+            len(unresolved_entries),
+        )
+    elif whitelist:
+        logger.warning(
+            "All %d whitelist entries are unresolved", len(whitelist)
+        )
+
+    # Check how many notebooks are actually accessible (D9)
+    all_notebooks = client.get_all_notebooks(fields="id,title,parent_id")
+    accessible = filter_accessible_notebooks(
+        all_notebooks, whitelist_entries=whitelist, client_fn=client_fn
+    )
+
+    if whitelist and len(accessible) == 0:
+        # Auto-create "MCP Access" default notebook (D9)
+        try:
+            new_id = client.add_notebook(title=_DEFAULT_NOTEBOOK_NAME)
+            logger.info(
+                "Whitelist resolved to zero accessible notebooks. "
+                "Created default '%s' (ID: %s)",
+                _DEFAULT_NOTEBOOK_NAME,
+                new_id,
+            )
+            # Refresh notebook map cache to include new notebook
+            invalidate_notebook_map_cache()
+            get_notebook_map_cached(force_refresh=True, client_fn=client_fn)
+            # Re-populate the whitelist spec cache
+            _get_whitelist_spec(whitelist, force_refresh=True)
+        except Exception:
+            logger.warning(
+                "Failed to auto-create default '%s' notebook",
+                _DEFAULT_NOTEBOOK_NAME,
+                exc_info=True,
+            )
+    else:
+        logger.info(
+            "%d notebook%s accessible under current whitelist",
+            len(accessible),
+            "" if len(accessible) == 1 else "s",
+        )
