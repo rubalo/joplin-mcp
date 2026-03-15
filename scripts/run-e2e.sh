@@ -8,6 +8,16 @@ set -euo pipefail
 COMPOSE_FILE="docker-compose.e2e.yml"
 cd "$(dirname "$0")/.."
 
+# Generate Joplin config if missing (gitignored)
+JOPLIN_CONFIG="tests/e2e/joplin-config.json"
+if [ ! -f "$JOPLIN_CONFIG" ]; then
+    echo "==> Generating $JOPLIN_CONFIG..."
+    mkdir -p "$(dirname "$JOPLIN_CONFIG")"
+    cat > "$JOPLIN_CONFIG" <<-JSON
+	{"api.token": "e2e_test_token", "api.port": 80}
+	JSON
+fi
+
 echo "==> Tearing down any leftover containers..."
 docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
 
