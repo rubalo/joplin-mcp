@@ -43,6 +43,7 @@ def _allowlist_config(allowlist, token="e2e_test_token"):
     targets = [
         "joplin_mcp.tools.notes._module_config",
         "joplin_mcp.tools.notebooks._module_config",
+        "joplin_mcp.tools.tags._module_config",
     ]
     patches = [patch(t, cfg) for t in targets]
     invalidate_notebook_map_cache()
@@ -569,6 +570,62 @@ class TestTagsWithAllowlist:
             await _call(tag_note, note_id=nid, tag_name="e2e-al-tag")
             tags = await _call(get_tags_by_note, note_id=nid)
             assert "e2e-al-tag" in tags
+
+    @pytest.mark.asyncio
+    async def test_tag_note_in_blocked_notebook_raises(self, hierarchy):
+        """Tagging a note in a blocked notebook should be denied."""
+        from joplin_mcp.tools.notes import create_note
+        from joplin_mcp.tools.tags import create_tag, tag_note
+
+        r = await _call(create_note, title="BlockedTagTarget", notebook_name="Personal", body="x")
+        nid = _extract_id(r)
+        await _call(create_tag, title="e2e-al-blocked-tag")
+
+        with _allowlist_config(["AI"]):
+            with pytest.raises(Exception):
+                await _call(tag_note, note_id=nid, tag_name="e2e-al-blocked-tag")
+
+    @pytest.mark.asyncio
+    async def test_untag_note_in_allowed_notebook(self, hierarchy):
+        from joplin_mcp.tools.notes import create_note
+        from joplin_mcp.tools.tags import create_tag, tag_note, untag_note
+
+        r = await _call(create_note, title="UntagTarget", notebook_name="AI", body="x")
+        nid = _extract_id(r)
+        await _call(create_tag, title="e2e-al-untag")
+        await _call(tag_note, note_id=nid, tag_name="e2e-al-untag")
+
+        with _allowlist_config(["AI"]):
+            result = await _call(untag_note, note_id=nid, tag_name="e2e-al-untag")
+            assert "success" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_untag_note_in_blocked_notebook_raises(self, hierarchy):
+        """Untagging a note in a blocked notebook should be denied."""
+        from joplin_mcp.tools.notes import create_note
+        from joplin_mcp.tools.tags import create_tag, tag_note, untag_note
+
+        r = await _call(create_note, title="BlockedUntagTarget", notebook_name="Personal", body="x")
+        nid = _extract_id(r)
+        await _call(create_tag, title="e2e-al-untag-blocked")
+        await _call(tag_note, note_id=nid, tag_name="e2e-al-untag-blocked")
+
+        with _allowlist_config(["AI"]):
+            with pytest.raises(Exception):
+                await _call(untag_note, note_id=nid, tag_name="e2e-al-untag-blocked")
+
+    @pytest.mark.asyncio
+    async def test_get_tags_by_note_in_blocked_notebook_raises(self, hierarchy):
+        """Getting tags for a note in a blocked notebook should be denied."""
+        from joplin_mcp.tools.notes import create_note
+        from joplin_mcp.tools.tags import get_tags_by_note
+
+        r = await _call(create_note, title="BlockedTagQuery", notebook_name="Personal", body="x")
+        nid = _extract_id(r)
+
+        with _allowlist_config(["AI"]):
+            with pytest.raises(Exception):
+                await _call(get_tags_by_note, note_id=nid)
 
 
 # ===================================================================

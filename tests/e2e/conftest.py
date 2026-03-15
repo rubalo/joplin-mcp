@@ -86,6 +86,7 @@ def _patch_joplin_client(e2e_config, e2e_client):
     config_targets = [
         "joplin_mcp.tools.notes._module_config",
         "joplin_mcp.tools.notebooks._module_config",
+        "joplin_mcp.tools.tags._module_config",
     ]
     for target in config_targets:
         try:
