@@ -8,6 +8,7 @@ from joplin_mcp.fastmcp_server import (
     ItemType,
     JoplinIdType,
     RequiredStringType,
+    _module_config,
     create_tool,
     format_creation_success,
     format_delete_success,
@@ -20,6 +21,7 @@ from joplin_mcp.fastmcp_server import (
     get_tag_id_by_name,
     process_search_results,
 )
+from joplin_mcp.notebook_utils import validate_notebook_access
 
 
 # === TAG HELPER FUNCTIONS ===
@@ -36,6 +38,13 @@ async def _tag_note_impl(note_id: str, tag_name: str) -> str:
     except Exception:
         raise ValueError(
             f"Note with ID '{note_id}' not found. Use find_notes to find available notes."
+        )
+
+    # Allowlist validation: ensure note is in an accessible notebook
+    if _module_config.has_notebook_allowlist:
+        parent_id = getattr(note, "parent_id", "")
+        validate_notebook_access(
+            parent_id, allowlist_entries=_module_config.notebook_allowlist
         )
 
     # Use helper function to get tag ID
@@ -63,6 +72,13 @@ async def _untag_note_impl(note_id: str, tag_name: str) -> str:
     except Exception:
         raise ValueError(
             f"Note with ID '{note_id}' not found. Use find_notes to find available notes."
+        )
+
+    # Allowlist validation: ensure note is in an accessible notebook
+    if _module_config.has_notebook_allowlist:
+        parent_id = getattr(note, "parent_id", "")
+        validate_notebook_access(
+            parent_id, allowlist_entries=_module_config.notebook_allowlist
         )
 
     # Use helper function to get tag ID
@@ -166,6 +182,15 @@ async def get_tags_by_note(
     """
 
     client = get_joplin_client()
+
+    # Allowlist validation: ensure note is in an accessible notebook
+    if _module_config.has_notebook_allowlist:
+        note = client.get_note(note_id, fields="id,parent_id")
+        parent_id = getattr(note, "parent_id", "")
+        validate_notebook_access(
+            parent_id, allowlist_entries=_module_config.notebook_allowlist
+        )
+
     fields_list = "id,title,created_time,updated_time"
     tags_result = client.get_tags(note_id=note_id, fields=fields_list)
     tags = process_search_results(tags_result)
