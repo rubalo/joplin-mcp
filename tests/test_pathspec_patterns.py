@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 from joplin_mcp.notebook_utils import (
     _build_allowlist_spec,
+    _build_compiled_entries,
     _has_negation_for_path,
-    _matches_allowlist,
     invalidate_notebook_map_cache,
     is_notebook_accessible,
 )
@@ -297,21 +297,21 @@ class TestHasNegationForPath:
 
     def test_no_negation(self):
         """Returns False (not negated) when no negation patterns exist."""
-        result = _has_negation_for_path("Projects/Work", ["Projects/*"])
+        entries = ["Projects/*"]
+        compiled = _build_compiled_entries(entries)
+        result = _has_negation_for_path("Projects/Work", compiled)
         assert result is False
 
     def test_negation_applies(self):
         """Returns True (negated) when path matches a negation pattern."""
-        result = _has_negation_for_path(
-            "Projects/Secret",
-            ["Projects/*", "!Projects/Secret"],
-        )
+        entries = ["Projects/*", "!Projects/Secret"]
+        compiled = _build_compiled_entries(entries)
+        result = _has_negation_for_path("Projects/Secret", compiled)
         assert result is True
 
     def test_re_inclusion_after_negation(self):
         """Returns False (not negated) when re-included after negation."""
-        result = _has_negation_for_path(
-            "Projects/Secret",
-            ["Projects/*", "!Projects/Secret", "Projects/Secret"],
-        )
+        entries = ["Projects/*", "!Projects/Secret", "Projects/Secret"]
+        compiled = _build_compiled_entries(entries)
+        result = _has_negation_for_path("Projects/Secret", compiled)
         assert result is False

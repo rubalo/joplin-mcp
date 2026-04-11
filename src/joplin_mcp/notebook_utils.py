@@ -125,6 +125,7 @@ def invalidate_notebook_map_cache() -> None:
     _ALLOWLIST_SPEC_CACHE["built_at"] = 0.0
     _ALLOWLIST_SPEC_CACHE["spec"] = None
     _ALLOWLIST_SPEC_CACHE["entries"] = None
+    _ALLOWLIST_SPEC_CACHE["compiled_entries"] = None
 
 
 # === ALLOWLIST PATHSPEC MATCHING ===
@@ -134,6 +135,7 @@ _ALLOWLIST_SPEC_CACHE: Dict[str, Any] = {
     "built_at": 0.0,
     "spec": None,
     "entries": None,
+    "compiled_entries": None,
 }
 
 # Regex for 32-char hex IDs (Joplin notebook/note IDs)
@@ -164,6 +166,29 @@ def _build_allowlist_spec(
         Compiled PathSpec object.
     """
     return pathspec.PathSpec.from_lines("gitwildmatch", allowlist_entries)
+
+
+def _build_compiled_entries(
+    allowlist_entries: List[str],
+) -> List[tuple]:
+    """Pre-compile per-entry PathSpec objects for negation checking.
+
+    Each entry is decomposed into (is_negation, compiled_spec) so that
+    _has_negation_for_path can replay patterns without recompilation.
+
+    Args:
+        allowlist_entries: List of pattern strings.
+
+    Returns:
+        List of (is_negation: bool, spec: PathSpec) tuples.
+    """
+    compiled: List[tuple] = []
+    for entry in allowlist_entries:
+        is_negation = entry.startswith("!")
+        pattern = entry[1:] if is_negation else entry
+        spec = pathspec.PathSpec.from_lines("gitwildmatch", [pattern])
+        compiled.append((is_negation, spec))
+    return compiled
 
 
 def _get_allowlist_spec(
@@ -198,8 +223,10 @@ def _get_allowlist_spec(
             return cached_spec
 
     spec = _build_allowlist_spec(allowlist_entries)
+    compiled_entries = _build_compiled_entries(allowlist_entries)
     _ALLOWLIST_SPEC_CACHE["spec"] = spec
     _ALLOWLIST_SPEC_CACHE["entries"] = list(allowlist_entries)
+    _ALLOWLIST_SPEC_CACHE["compiled_entries"] = compiled_entries
     _ALLOWLIST_SPEC_CACHE["built_at"] = now
     return spec
 
@@ -237,11 +264,11 @@ def _matches_allowlist(
         ancestor = "/".join(parts[:i])
         if spec.match_file(ancestor):
             # Ancestor matched, but check if a later negation excludes the full path
-            # We need to verify the full path is not negated
-            # Since pathspec handles negation for the full path already,
-            # and we're checking ancestors, we need to ensure no negation
-            # pattern targets the full path specifically
-            if not _has_negation_for_path(notebook_path, allowlist_entries):
+            # Use cached compiled entries to avoid recompilation per call
+            compiled = _ALLOWLIST_SPEC_CACHE.get("compiled_entries")
+            if compiled is None:
+                compiled = _build_compiled_entries(allowlist_entries)
+            if not _has_negation_for_path(notebook_path, compiled):
                 return True
 
     # Check literal notebook ID (for patterns that are raw 32-char hex IDs)
@@ -257,15 +284,19 @@ def _matches_allowlist(
     return False
 
 
-def _has_negation_for_path(path: str, allowlist_entries: List[str]) -> bool:
+def _has_negation_for_path(
+    path: str,
+    compiled_entries: List[tuple],
+) -> bool:
     """Check if any negation pattern in the allowlist specifically targets this path.
 
-    Uses last-match-wins semantics: evaluates all patterns in order,
+    Uses last-match-wins semantics: evaluates all precompiled patterns in order,
     tracking whether the path is included or excluded.
 
     Args:
         path: The full notebook path to check.
-        allowlist_entries: The allowlist pattern list.
+        compiled_entries: Precompiled list of (is_negation, spec) tuples
+            from _build_compiled_entries or the allowlist spec cache.
 
     Returns:
         True if the path is negated (excluded) by the patterns.
@@ -273,14 +304,6 @@ def _has_negation_for_path(path: str, allowlist_entries: List[str]) -> bool:
     # Precompute path ancestors once
     parts = path.split("/")
     ancestors = ["/".join(parts[:i]) for i in range(1, len(parts))]
-
-    # Precompile specs for all entries once
-    compiled_entries: List[tuple] = []
-    for entry in allowlist_entries:
-        is_negation = entry.startswith("!")
-        pattern = entry[1:] if is_negation else entry
-        spec = pathspec.PathSpec.from_lines("gitwildmatch", [pattern])
-        compiled_entries.append((is_negation, spec))
 
     # Replay all patterns in order to determine the final state
     included = False
@@ -594,9 +617,16 @@ def _validate_allowlist_at_startup_inner(
 
         # Check if entry is a 32-char hex ID
         if _HEX_ID_RE.match(entry_stripped):
-            if entry_stripped in nb_map:
+            # Normalize to lowercase for case-insensitive hex ID comparison
+            entry_lower = entry_stripped.lower()
+            matched_id = None
+            for nb_id in nb_map:
+                if nb_id.lower() == entry_lower:
+                    matched_id = nb_id
+                    break
+            if matched_id is not None:
                 path = _compute_notebook_path(
-                    entry_stripped, nb_map, sep="/"
+                    matched_id, nb_map, sep="/"
                 )
                 logger.info(
                     "Allowlist entry resolved: ID %s -> %s",
