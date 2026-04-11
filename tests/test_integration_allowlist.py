@@ -17,8 +17,8 @@ from joplin_mcp.notebook_utils import (
     filter_accessible_notebooks,
     invalidate_notebook_map_cache,
     is_notebook_accessible,
-    validate_notebook_access,
     validate_allowlist_at_startup,
+    validate_notebook_access,
 )
 
 
@@ -117,21 +117,19 @@ class TestEndToEndAllowlistWorkflow:
 
         allowlist = ["Projects"]
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client),
-            patch(
-                "joplin_mcp.tools.notes.validate_notebook_access",
-                side_effect=lambda nb_id, allowlist_entries=None, **kw: (
-                    # Use real validation with our mock client
-                    validate_notebook_access(
-                        nb_id,
-                        allowlist_entries=allowlist_entries,
-                        client_fn=client_fn,
-                    )
-                ),
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client), \
+             patch(
+             "joplin_mcp.tools.notes.validate_notebook_access",
+             side_effect=lambda nb_id, allowlist_entries=None, **kw: (
+             # Use real validation with our mock client
+             validate_notebook_access(
+             nb_id,
+             allowlist_entries=allowlist_entries,
+             client_fn=client_fn,
+             )
+             ),
+             ):
             mock_cfg.has_notebook_allowlist = True
             mock_cfg.notebook_allowlist = allowlist
             mock_cfg.should_show_content.return_value = True
@@ -163,20 +161,18 @@ class TestEndToEndAllowlistWorkflow:
 
         allowlist = ["Projects"]
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client),
-            patch(
-                "joplin_mcp.tools.notes.validate_notebook_access",
-                side_effect=lambda nb_id, allowlist_entries=None, **kw: (
-                    validate_notebook_access(
-                        nb_id,
-                        allowlist_entries=allowlist_entries,
-                        client_fn=client_fn,
-                    )
-                ),
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client), \
+             patch(
+             "joplin_mcp.tools.notes.validate_notebook_access",
+             side_effect=lambda nb_id, allowlist_entries=None, **kw: (
+             validate_notebook_access(
+             nb_id,
+             allowlist_entries=allowlist_entries,
+             client_fn=client_fn,
+             )
+             ),
+             ):
             mock_cfg.has_notebook_allowlist = True
             mock_cfg.notebook_allowlist = allowlist
             mock_cfg.should_show_content.return_value = True
@@ -264,24 +260,22 @@ class TestHierarchicalAccessIntegration:
 
         allowlist = ["Projects"]
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client),
-            patch(
-                "joplin_mcp.tools.notes.get_notebook_id_by_name",
-                return_value=ids["Work"],
-            ),
-            patch(
-                "joplin_mcp.tools.notes.validate_notebook_access",
-                side_effect=lambda nb_id, allowlist_entries=None, **kw: (
-                    validate_notebook_access(
-                        nb_id,
-                        allowlist_entries=allowlist_entries,
-                        client_fn=client_fn,
-                    )
-                ),
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client), \
+             patch(
+             "joplin_mcp.tools.notes.get_notebook_id_by_name",
+             return_value=ids["Work"],
+             ), \
+             patch(
+             "joplin_mcp.tools.notes.validate_notebook_access",
+             side_effect=lambda nb_id, allowlist_entries=None, **kw: (
+             validate_notebook_access(
+             nb_id,
+             allowlist_entries=allowlist_entries,
+             client_fn=client_fn,
+             )
+             ),
+             ):
             mock_cfg.has_notebook_allowlist = True
             mock_cfg.notebook_allowlist = allowlist
             mock_cfg.should_show_content.return_value = True
@@ -307,24 +301,22 @@ class TestHierarchicalAccessIntegration:
 
         allowlist = ["Projects"]
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client),
-            patch(
-                "joplin_mcp.tools.notes.get_notebook_id_by_name",
-                return_value=ids["Diary"],
-            ),
-            patch(
-                "joplin_mcp.tools.notes.validate_notebook_access",
-                side_effect=lambda nb_id, allowlist_entries=None, **kw: (
-                    validate_notebook_access(
-                        nb_id,
-                        allowlist_entries=allowlist_entries,
-                        client_fn=client_fn,
-                    )
-                ),
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client), \
+             patch(
+             "joplin_mcp.tools.notes.get_notebook_id_by_name",
+             return_value=ids["Diary"],
+             ), \
+             patch(
+             "joplin_mcp.tools.notes.validate_notebook_access",
+             side_effect=lambda nb_id, allowlist_entries=None, **kw: (
+             validate_notebook_access(
+             nb_id,
+             allowlist_entries=allowlist_entries,
+             client_fn=client_fn,
+             )
+             ),
+             ):
             mock_cfg.has_notebook_allowlist = True
             mock_cfg.notebook_allowlist = allowlist
             mock_cfg.should_show_content.return_value = True
@@ -369,10 +361,8 @@ class TestBackwardCompatibilityIntegration:
         mock_client = MagicMock()
         mock_client.get_note.return_value = mock_note
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client):
             mock_cfg.has_notebook_allowlist = False
             mock_cfg.notebook_allowlist = None
             mock_cfg.should_show_content.return_value = True
@@ -394,14 +384,12 @@ class TestBackwardCompatibilityIntegration:
         mock_client = MagicMock()
         mock_client.add_note.return_value = "new_note_id"
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client),
-            patch(
-                "joplin_mcp.tools.notes.get_notebook_id_by_name",
-                return_value="any_nb_id",
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client), \
+             patch(
+             "joplin_mcp.tools.notes.get_notebook_id_by_name",
+             return_value="any_nb_id",
+             ):
             mock_cfg.has_notebook_allowlist = False
             mock_cfg.notebook_allowlist = None
             mock_cfg.should_show_content.return_value = True
@@ -428,14 +416,12 @@ class TestBackwardCompatibilityIntegration:
         mock_client = MagicMock()
         mock_client.get_all_notebooks.return_value = mock_notebooks
 
-        with (
-            patch("joplin_mcp.tools.notebooks._module_config") as mock_cfg,
-            patch(
-                "joplin_mcp.tools.notebooks.get_joplin_client",
-                return_value=mock_client,
-            ),
-            patch("joplin_mcp.tools.notebooks.format_item_list") as mock_format,
-        ):
+        with patch("joplin_mcp.tools.notebooks._module_config") as mock_cfg, \
+             patch(
+             "joplin_mcp.tools.notebooks.get_joplin_client",
+             return_value=mock_client,
+             ), \
+             patch("joplin_mcp.tools.notebooks.format_item_list") as mock_format:
             mock_cfg.has_notebook_allowlist = False
             mock_cfg.notebook_allowlist = None
 
@@ -457,10 +443,8 @@ class TestBackwardCompatibilityIntegration:
         """delete_note succeeds for any notebook when no allowlist is configured."""
         mock_client = MagicMock()
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=mock_client):
             mock_cfg.has_notebook_allowlist = False
             mock_cfg.notebook_allowlist = None
             mock_cfg.should_show_content.return_value = True
@@ -626,20 +610,18 @@ class TestMixedPatternTypesIntegration:
 
         allowlist = ["AI", "Projects/*"]
 
-        with (
-            patch("joplin_mcp.tools.notes._module_config") as mock_cfg,
-            patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client),
-            patch(
-                "joplin_mcp.tools.notes.is_notebook_accessible",
-                side_effect=lambda parent_id, allowlist_entries=None, **kw: (
-                    is_notebook_accessible(
-                        parent_id,
-                        allowlist_entries=allowlist_entries,
-                        client_fn=client_fn,
-                    )
-                ),
-            ),
-        ):
+        with patch("joplin_mcp.tools.notes._module_config") as mock_cfg, \
+             patch("joplin_mcp.tools.notes.get_joplin_client", return_value=client), \
+             patch(
+             "joplin_mcp.tools.notes.is_notebook_accessible",
+             side_effect=lambda parent_id, allowlist_entries=None, **kw: (
+             is_notebook_accessible(
+             parent_id,
+             allowlist_entries=allowlist_entries,
+             client_fn=client_fn,
+             )
+             ),
+             ):
             mock_cfg.has_notebook_allowlist = True
             mock_cfg.notebook_allowlist = allowlist
             mock_cfg.should_show_content.return_value = True

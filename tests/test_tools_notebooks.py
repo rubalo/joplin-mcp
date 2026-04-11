@@ -23,8 +23,8 @@ class TestListNotebooksTool:
     @patch("joplin_mcp.tools.notebooks.get_joplin_client")
     async def test_lists_all_notebooks(self, mock_get_client, mock_format):
         """Should list all notebooks."""
-        from joplin_mcp.tools.notebooks import list_notebooks
         from joplin_mcp.fastmcp_server import ItemType
+        from joplin_mcp.tools.notebooks import list_notebooks
 
         mock_notebooks = [
             MagicMock(id="nb1", title="Work", parent_id=None),
