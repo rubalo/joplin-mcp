@@ -393,8 +393,10 @@ def _no_notebook_allowlist():
             mock_cfg.get_smart_toc_threshold.return_value = 2000
             mock_cfg.tools = {}
             patches.append(p)
-        except Exception:
-            pass
+        except ModuleNotFoundError:
+            continue
+        except Exception as exc:
+            pytest.fail(f"Failed to patch {target} in _no_notebook_allowlist: {exc}")
     yield
     for p in patches:
         p.stop()

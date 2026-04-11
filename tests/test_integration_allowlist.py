@@ -480,7 +480,7 @@ class TestBackwardCompatibilityIntegration:
         """JoplinMCPConfig with no notebook_allowlist has has_notebook_allowlist=False."""
         config = JoplinMCPConfig(token="test_token")
         assert config.has_notebook_allowlist is False
-        assert config.notebook_allowlist is None
+        assert config.notebook_allowlist == JoplinMCPConfig.ALLOW_ALL
 
 
 # ---------------------------------------------------------------------------
@@ -553,31 +553,39 @@ class TestMixedPatternTypesIntegration:
             ids["Fun"], allowlist_entries=allowlist, client_fn=client_fn,
         ) is False
 
-    def test_id_based_allowlist_entry(self, mock_notebook_hierarchy):
-        """Allowlist with raw notebook ID works alongside path patterns."""
-        ids = mock_notebook_hierarchy["ids"]
-        notebooks = mock_notebook_hierarchy["notebooks"]
+    def test_id_based_allowlist_entry(self):
+        """Allowlist with raw 32-char hex notebook ID works alongside path patterns."""
+        # Use real 32-char hex IDs so _HEX_ID_RE matches for ID-based allowlisting
+        personal_id = "aabbccddee11223344556677aabbccdd"
+        ai_id = "11223344556677889900aabbccddeeff"
+        projects_id = "ffeeddccbbaa99887766554433221100"
+
+        notebooks = [
+            SimpleNamespace(id=projects_id, title="Projects", parent_id=""),
+            SimpleNamespace(id=personal_id, title="Personal", parent_id=""),
+            SimpleNamespace(id=ai_id, title="AI", parent_id=""),
+        ]
         client = _make_mock_client(notebooks)
         client_fn = lambda: client  # noqa: E731
 
-        # Mix a raw ID with a path pattern
-        allowlist = [ids["Personal"], "AI"]
+        # Mix a raw hex ID with a path pattern
+        allowlist = [personal_id, "AI"]
 
-        # Personal accessible by ID
+        # Personal accessible by hex ID
         assert is_notebook_accessible(
-            ids["Personal"], allowlist_entries=allowlist, client_fn=client_fn,
+            personal_id, allowlist_entries=allowlist, client_fn=client_fn,
         ) is True
 
         invalidate_notebook_map_cache()
         # AI accessible by path
         assert is_notebook_accessible(
-            ids["AI"], allowlist_entries=allowlist, client_fn=client_fn,
+            ai_id, allowlist_entries=allowlist, client_fn=client_fn,
         ) is True
 
         invalidate_notebook_map_cache()
         # Projects not accessible (not in allowlist)
         assert is_notebook_accessible(
-            ids["Projects"], allowlist_entries=allowlist, client_fn=client_fn,
+            projects_id, allowlist_entries=allowlist, client_fn=client_fn,
         ) is False
 
     @pytest.mark.asyncio
@@ -726,9 +734,6 @@ class TestStartupValidationIntegration:
         # Verify accessible notebooks still work after startup
         client_fn = lambda: client  # noqa: E731
         invalidate_notebook_map_cache()
-        ids = {
-            nb.id: nb.title for nb in notebooks
-        }
         projects_id = [
             nb.id for nb in notebooks if nb.title == "Projects"
         ][0]
@@ -791,10 +796,16 @@ class TestFilterAccessibleNotebooksIntegration:
         assert "Personal" not in result_titles
         assert "Diary" not in result_titles
 
-    def test_filter_with_none_returns_all(self):
-        """filter_accessible_notebooks returns all notebooks when allowlist is None (no restrictions)."""
+    def test_filter_with_allow_all_returns_all(self):
+        """filter_accessible_notebooks returns all notebooks when allowlist is ALLOW_ALL (no restrictions)."""
         notebooks = [SimpleNamespace(id="nb1", title="Work")]
-        result = filter_accessible_notebooks(notebooks, allowlist_entries=None)
+        client = _make_mock_client(notebooks)
+        client_fn = lambda: client  # noqa: E731
+        result = filter_accessible_notebooks(
+            notebooks,
+            allowlist_entries=list(JoplinMCPConfig.ALLOW_ALL),
+            client_fn=client_fn,
+        )
         assert len(result) == 1
         assert result[0].id == "nb1"
 

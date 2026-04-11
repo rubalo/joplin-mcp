@@ -739,3 +739,228 @@ class TestNoteAllowlistErrorMessages:
         error_msg = str(exc_info.value)
         assert "My Private Diary" not in error_msg
         assert "Notebook not accessible" in error_msg
+
+
+# === Tests for get_links with allowlist ===
+
+
+class TestGetLinksAllowlist:
+    """Tests for get_links allowlist validation and filtering."""
+
+    @pytest.mark.asyncio
+    @patch("joplin_mcp.tools.notes.is_notebook_accessible")
+    @patch("joplin_mcp.tools.notes.validate_notebook_access")
+    @patch("joplin_mcp.tools.notes.get_joplin_client")
+    async def test_get_links_blocked_source_note(
+        self,
+        mock_get_client,
+        mock_validate,
+        mock_is_accessible,
+        mock_allowlist_config,
+    ):
+        """Should raise error when source note is in a non-allowlisted notebook."""
+        from joplin_mcp.tools.notes import get_links
+
+        mock_note = MagicMock()
+        mock_note.parent_id = "blocked_nb_id"
+        mock_note.title = "Secret Note"
+        mock_note.body = "some content"
+        mock_note.id = "12345678901234567890123456789012"
+        mock_client = MagicMock()
+        mock_client.get_note.return_value = mock_note
+        mock_get_client.return_value = mock_client
+
+        mock_validate.side_effect = ValueError("Notebook not accessible")
+
+        fn = _get_tool_fn(get_links)
+        with pytest.raises(ValueError, match="Notebook not accessible"):
+            await fn(note_id="12345678901234567890123456789012")
+
+    @pytest.mark.asyncio
+    @patch("joplin_mcp.tools.notes.process_search_results")
+    @patch("joplin_mcp.tools.notes.is_notebook_accessible")
+    @patch("joplin_mcp.tools.notes.validate_notebook_access")
+    @patch("joplin_mcp.tools.notes.get_joplin_client")
+    async def test_get_links_filters_inaccessible_linked_notes(
+        self,
+        mock_get_client,
+        mock_validate,
+        mock_is_accessible,
+        mock_search_results,
+        mock_allowlist_config,
+    ):
+        """Should filter out outgoing links to notes in non-accessible notebooks."""
+        from joplin_mcp.tools.notes import get_links
+
+        target_note_id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        blocked_note_id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+        mock_note = MagicMock()
+        mock_note.parent_id = "allowed_nb_id"
+        mock_note.title = "Source Note"
+        mock_note.body = (
+            f"Link to [allowed](:/{target_note_id}) and [blocked](:/{blocked_note_id})"
+        )
+        mock_note.id = "12345678901234567890123456789012"
+
+        target_note = MagicMock()
+        target_note.id = target_note_id
+        target_note.title = "Allowed Target"
+        target_note.parent_id = "allowed_nb_id"
+
+        blocked_note = MagicMock()
+        blocked_note.id = blocked_note_id
+        blocked_note.title = "Blocked Target"
+        blocked_note.parent_id = "blocked_nb_id"
+
+        mock_client = MagicMock()
+        mock_client.get_note.side_effect = lambda nid, **kw: {
+            "12345678901234567890123456789012": mock_note,
+            target_note_id: target_note,
+            blocked_note_id: blocked_note,
+        }[nid]
+        mock_client.search_all.return_value = []
+        mock_get_client.return_value = mock_client
+        mock_search_results.return_value = []
+
+        # Source note passes validation; is_notebook_accessible controls link filtering
+        mock_validate.return_value = None
+        mock_is_accessible.side_effect = lambda nb_id, **kw: nb_id != "blocked_nb_id"
+
+        fn = _get_tool_fn(get_links)
+        result = await fn(note_id="12345678901234567890123456789012")
+
+        # The allowed link should appear, the blocked one should not
+        assert "Allowed Target" in result
+        assert "Blocked Target" not in result
+
+    @pytest.mark.asyncio
+    @patch("joplin_mcp.tools.notes.process_search_results")
+    @patch("joplin_mcp.tools.notes.is_notebook_accessible")
+    @patch("joplin_mcp.tools.notes.validate_notebook_access")
+    @patch("joplin_mcp.tools.notes.get_joplin_client")
+    async def test_get_links_filters_inaccessible_backlinks(
+        self,
+        mock_get_client,
+        mock_validate,
+        mock_is_accessible,
+        mock_search_results,
+        mock_allowlist_config,
+    ):
+        """Should filter out backlinks from notes in non-accessible notebooks."""
+        from joplin_mcp.tools.notes import get_links
+
+        note_id = "12345678901234567890123456789012"
+
+        mock_note = MagicMock()
+        mock_note.parent_id = "allowed_nb_id"
+        mock_note.title = "My Note"
+        mock_note.body = "no links here"
+        mock_note.id = note_id
+
+        # Backlink from an accessible notebook
+        allowed_backlink = MagicMock()
+        allowed_backlink.id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        allowed_backlink.title = "Allowed Backlink"
+        allowed_backlink.parent_id = "allowed_nb_id"
+        allowed_backlink.body = f"See [ref](:/{note_id})"
+
+        # Backlink from a blocked notebook
+        blocked_backlink = MagicMock()
+        blocked_backlink.id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        blocked_backlink.title = "Blocked Backlink"
+        blocked_backlink.parent_id = "blocked_nb_id"
+        blocked_backlink.body = f"See [ref](:/{note_id})"
+
+        mock_client = MagicMock()
+        mock_client.get_note.return_value = mock_note
+        mock_client.search_all.return_value = []
+        mock_get_client.return_value = mock_client
+        mock_search_results.return_value = [allowed_backlink, blocked_backlink]
+
+        mock_validate.return_value = None
+        mock_is_accessible.side_effect = lambda nb_id, **kw: nb_id != "blocked_nb_id"
+
+        fn = _get_tool_fn(get_links)
+        result = await fn(note_id=note_id)
+
+        assert "Allowed Backlink" in result
+        assert "Blocked Backlink" not in result
+
+
+# === Tests for find_in_note with allowlist ===
+
+
+class TestFindInNoteAllowlist:
+    """Tests for find_in_note allowlist validation."""
+
+    @pytest.mark.asyncio
+    @patch("joplin_mcp.tools.notes.validate_notebook_access")
+    @patch("joplin_mcp.tools.notes.get_joplin_client")
+    async def test_find_in_note_blocked_notebook(
+        self,
+        mock_get_client,
+        mock_validate,
+        mock_allowlist_config,
+    ):
+        """Should raise error when note is in a non-allowlisted notebook."""
+        from joplin_mcp.tools.notes import find_in_note
+
+        mock_note = MagicMock()
+        mock_note.parent_id = "blocked_nb_id"
+        mock_note.title = "Secret Note"
+        mock_note.body = "secret content"
+        mock_note.id = "12345678901234567890123456789012"
+        mock_client = MagicMock()
+        mock_client.get_note.return_value = mock_note
+        mock_get_client.return_value = mock_client
+
+        mock_validate.side_effect = ValueError("Notebook not accessible")
+
+        fn = _get_tool_fn(find_in_note)
+        with pytest.raises(ValueError, match="Notebook not accessible"):
+            await fn(
+                note_id="12345678901234567890123456789012",
+                pattern="secret",
+            )
+
+    @pytest.mark.asyncio
+    @patch("joplin_mcp.tools.notes.get_notebook_map_cached")
+    @patch("joplin_mcp.tools.notes.validate_notebook_access")
+    @patch("joplin_mcp.tools.notes.get_joplin_client")
+    async def test_find_in_note_allowed_notebook(
+        self,
+        mock_get_client,
+        mock_validate,
+        mock_nb_map,
+        mock_allowlist_config,
+    ):
+        """Should succeed when note is in an allowlisted notebook."""
+        from joplin_mcp.tools.notes import find_in_note
+
+        mock_note = MagicMock()
+        mock_note.parent_id = "allowed_nb_id"
+        mock_note.title = "Public Note"
+        mock_note.body = "hello world"
+        mock_note.id = "12345678901234567890123456789012"
+        mock_note.created_time = 1609459200000
+        mock_note.updated_time = 1609545600000
+        mock_note.is_todo = 0
+        mock_client = MagicMock()
+        mock_client.get_note.return_value = mock_note
+        mock_get_client.return_value = mock_client
+        mock_nb_map.return_value = {}
+
+        mock_validate.return_value = None
+
+        fn = _get_tool_fn(find_in_note)
+        result = await fn(
+            note_id="12345678901234567890123456789012",
+            pattern="hello",
+        )
+
+        mock_validate.assert_called_once_with(
+            "allowed_nb_id",
+            allowlist_entries=mock_allowlist_config.notebook_allowlist,
+        )
+        assert "hello" in result
