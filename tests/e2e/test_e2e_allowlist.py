@@ -19,6 +19,7 @@ pytestmark = pytest.mark.e2e
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _call(tool, **kwargs):
     """Call a FunctionTool or raw async function."""
     fn = getattr(tool, "fn", tool)
@@ -61,6 +62,7 @@ def _allowlist_config(allowlist, token="e2e_test_token"):
 # Shared fixture: build a real notebook hierarchy once per test
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def hierarchy(e2e_client):
     """Create a notebook hierarchy once for all allowlist tests.
@@ -91,7 +93,11 @@ def hierarchy(e2e_client):
         created_ids.append(nb_id)
 
     # Children
-    for name, parent in [("Work", "Projects"), ("Secret", "Projects"), ("Diary", "Personal")]:
+    for name, parent in [
+        ("Work", "Projects"),
+        ("Secret", "Projects"),
+        ("Diary", "Personal"),
+    ]:
         nb_id = e2e_client.add_notebook(title=name, parent_id=ids[parent])
         ids[name] = nb_id
         created_ids.append(nb_id)
@@ -126,6 +132,7 @@ def hierarchy(e2e_client):
 # 1. NO ALLOWLIST (backward compatibility)
 # ===================================================================
 
+
 class TestNoAllowlist:
     """When no allowlist is configured, everything should be accessible."""
 
@@ -139,9 +146,11 @@ class TestNoAllowlist:
 
     @pytest.mark.asyncio
     async def test_note_crud_unrestricted(self, hierarchy):
-        from joplin_mcp.tools.notes import create_note, get_note, delete_note
+        from joplin_mcp.tools.notes import create_note, delete_note, get_note
 
-        r = await _call(create_note, title="Free Note", notebook_name="Projects/Secret", body="x")
+        r = await _call(
+            create_note, title="Free Note", notebook_name="Projects/Secret", body="x"
+        )
         nid = _extract_id(r)
         get_r = await _call(get_note, note_id=nid)
         assert "Free Note" in get_r
@@ -151,6 +160,7 @@ class TestNoAllowlist:
 # ===================================================================
 # 2. LIST NOTEBOOKS — filtering
 # ===================================================================
+
 
 class TestListNotebooksAllowlist:
 
@@ -195,6 +205,7 @@ class TestListNotebooksAllowlist:
 # 3. CREATE NOTE — write validation
 # ===================================================================
 
+
 class TestCreateNoteAllowlist:
 
     @pytest.mark.asyncio
@@ -210,8 +221,10 @@ class TestCreateNoteAllowlist:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
-                await _call(create_note, title="Nope", notebook_name="Personal", body="no")
+            with pytest.raises(ValueError, match="Notebook not accessible"):
+                await _call(
+                    create_note, title="Nope", notebook_name="Personal", body="no"
+                )
 
     @pytest.mark.asyncio
     async def test_create_in_child_of_allowed_parent(self, hierarchy):
@@ -219,7 +232,9 @@ class TestCreateNoteAllowlist:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["Projects"]):
-            r = await _call(create_note, title="Child OK", notebook_name="Work", body="ok")
+            r = await _call(
+                create_note, title="Child OK", notebook_name="Work", body="ok"
+            )
             assert "Child OK" in r
 
     @pytest.mark.asyncio
@@ -227,13 +242,14 @@ class TestCreateNoteAllowlist:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(create_note, title="No", notebook_name="Diary", body="no")
 
 
 # ===================================================================
 # 4. GET NOTE — read validation
 # ===================================================================
+
 
 class TestGetNoteAllowlist:
 
@@ -242,7 +258,9 @@ class TestGetNoteAllowlist:
         from joplin_mcp.tools.notes import create_note, get_note
 
         # Create note without allowlist
-        r = await _call(create_note, title="Readable", notebook_name="AI", body="content")
+        r = await _call(
+            create_note, title="Readable", notebook_name="AI", body="content"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
@@ -254,17 +272,20 @@ class TestGetNoteAllowlist:
     async def test_get_blocked_note_raises(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, get_note
 
-        r = await _call(create_note, title="Hidden", notebook_name="Personal", body="secret")
+        r = await _call(
+            create_note, title="Hidden", notebook_name="Personal", body="secret"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(get_note, note_id=nid)
 
 
 # ===================================================================
 # 5. UPDATE NOTE — write validation
 # ===================================================================
+
 
 class TestUpdateNoteAllowlist:
 
@@ -284,11 +305,13 @@ class TestUpdateNoteAllowlist:
     async def test_update_blocked_note_raises(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, update_note
 
-        r = await _call(create_note, title="Locked", notebook_name="Personal", body="v1")
+        r = await _call(
+            create_note, title="Locked", notebook_name="Personal", body="v1"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(update_note, note_id=nid, title="Nope")
 
 
@@ -296,17 +319,22 @@ class TestUpdateNoteAllowlist:
 # 6. EDIT NOTE — precision edit validation
 # ===================================================================
 
+
 class TestEditNoteAllowlist:
 
     @pytest.mark.asyncio
     async def test_edit_allowed_note(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, edit_note, get_note
 
-        r = await _call(create_note, title="EditMe", notebook_name="AI", body="hello world")
+        r = await _call(
+            create_note, title="EditMe", notebook_name="AI", body="hello world"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            await _call(edit_note, note_id=nid, old_string="hello", new_string="goodbye")
+            await _call(
+                edit_note, note_id=nid, old_string="hello", new_string="goodbye"
+            )
             result = await _call(get_note, note_id=nid)
             assert "goodbye world" in result
 
@@ -314,17 +342,22 @@ class TestEditNoteAllowlist:
     async def test_edit_blocked_note_raises(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, edit_note
 
-        r = await _call(create_note, title="NoEdit", notebook_name="Personal", body="text")
+        r = await _call(
+            create_note, title="NoEdit", notebook_name="Personal", body="text"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
-                await _call(edit_note, note_id=nid, old_string="text", new_string="nope")
+            with pytest.raises(ValueError, match="Notebook not accessible"):
+                await _call(
+                    edit_note, note_id=nid, old_string="text", new_string="nope"
+                )
 
 
 # ===================================================================
 # 7. DELETE NOTE — destructive validation
 # ===================================================================
+
 
 class TestDeleteNoteAllowlist:
 
@@ -343,17 +376,20 @@ class TestDeleteNoteAllowlist:
     async def test_delete_blocked_note_raises(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, delete_note
 
-        r = await _call(create_note, title="Protected", notebook_name="Personal", body="x")
+        r = await _call(
+            create_note, title="Protected", notebook_name="Personal", body="x"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(delete_note, note_id=nid)
 
 
 # ===================================================================
 # 8. FIND NOTES — search result filtering
 # ===================================================================
+
 
 class TestFindNotesAllowlist:
 
@@ -363,8 +399,12 @@ class TestFindNotesAllowlist:
         from joplin_mcp.tools.notes import create_note, find_notes
 
         # Create notes in allowed and blocked notebooks
-        await _call(create_note, title="VisibleSearchNote", notebook_name="AI", body="x")
-        await _call(create_note, title="HiddenSearchNote", notebook_name="Personal", body="x")
+        await _call(
+            create_note, title="VisibleSearchNote", notebook_name="AI", body="x"
+        )
+        await _call(
+            create_note, title="HiddenSearchNote", notebook_name="Personal", body="x"
+        )
 
         with _allowlist_config(["AI"]):
             result = await _call(find_notes, query="*")
@@ -375,7 +415,9 @@ class TestFindNotesAllowlist:
     async def test_list_all_returns_nothing_when_all_blocked(self, hierarchy):
         from joplin_mcp.tools.notes import create_note, find_notes
 
-        await _call(create_note, title="GhostSearchNote", notebook_name="Personal", body="x")
+        await _call(
+            create_note, title="GhostSearchNote", notebook_name="Personal", body="x"
+        )
 
         with _allowlist_config(["AI"]):
             result = await _call(find_notes, query="*")
@@ -385,6 +427,7 @@ class TestFindNotesAllowlist:
 # ===================================================================
 # 9. FIND NOTES IN NOTEBOOK — notebook-level validation
 # ===================================================================
+
 
 class TestFindNotesInNotebookAllowlist:
 
@@ -403,13 +446,14 @@ class TestFindNotesInNotebookAllowlist:
         from joplin_mcp.tools.notes import find_notes_in_notebook
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(find_notes_in_notebook, notebook_name="Personal")
 
 
 # ===================================================================
 # 10. CREATE NOTEBOOK — with allowlist
 # ===================================================================
+
 
 class TestCreateNotebookAllowlist:
 
@@ -418,7 +462,9 @@ class TestCreateNotebookAllowlist:
         from joplin_mcp.tools.notebooks import create_notebook
 
         with _allowlist_config(["Projects"]):
-            r = await _call(create_notebook, title="New Sub", parent_id=hierarchy["Projects"])
+            r = await _call(
+                create_notebook, title="New Sub", parent_id=hierarchy["Projects"]
+            )
             assert "New Sub" in r
 
     @pytest.mark.asyncio
@@ -426,8 +472,10 @@ class TestCreateNotebookAllowlist:
         from joplin_mcp.tools.notebooks import create_notebook
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
-                await _call(create_notebook, title="Nope", parent_id=hierarchy["Personal"])
+            with pytest.raises(ValueError, match="Notebook not accessible"):
+                await _call(
+                    create_notebook, title="Nope", parent_id=hierarchy["Personal"]
+                )
 
     @pytest.mark.asyncio
     async def test_create_top_level_notebook_blocked(self, hierarchy):
@@ -435,13 +483,14 @@ class TestCreateNotebookAllowlist:
         from joplin_mcp.tools.notebooks import create_notebook
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(create_notebook, title="Top Level Nope")
 
 
 # ===================================================================
 # 11. HIERARCHICAL ACCESS — parent grants child
 # ===================================================================
+
 
 class TestHierarchicalAccess:
 
@@ -450,7 +499,9 @@ class TestHierarchicalAccess:
         """Allowlisting 'Projects' should let us read notes in 'Work'."""
         from joplin_mcp.tools.notes import create_note, get_note
 
-        r = await _call(create_note, title="Deep Note", notebook_name="Work", body="deep")
+        r = await _call(
+            create_note, title="Deep Note", notebook_name="Work", body="deep"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["Projects"]):
@@ -462,7 +513,9 @@ class TestHierarchicalAccess:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["Projects"]):
-            r = await _call(create_note, title="Work Note", notebook_name="Work", body="ok")
+            r = await _call(
+                create_note, title="Work Note", notebook_name="Work", body="ok"
+            )
             assert "Work Note" in r
 
     @pytest.mark.asyncio
@@ -471,13 +524,14 @@ class TestHierarchicalAccess:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["Projects/Work"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(create_note, title="No", notebook_name="Secret", body="no")
 
 
 # ===================================================================
 # 12. NEGATION PATTERNS
 # ===================================================================
+
 
 class TestNegationPatterns:
 
@@ -490,7 +544,7 @@ class TestNegationPatterns:
             r = await _call(create_note, title="OK", notebook_name="Work", body="ok")
             assert "OK" in r
 
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(create_note, title="No", notebook_name="Secret", body="no")
 
     @pytest.mark.asyncio
@@ -506,6 +560,7 @@ class TestNegationPatterns:
 # ===================================================================
 # 13. GLOB PATTERNS
 # ===================================================================
+
 
 class TestGlobPatterns:
 
@@ -533,6 +588,7 @@ class TestGlobPatterns:
 # 14. ERROR MESSAGE PRIVACY (D7)
 # ===================================================================
 
+
 class TestErrorMessagePrivacy:
 
     @pytest.mark.asyncio
@@ -541,7 +597,7 @@ class TestErrorMessagePrivacy:
         from joplin_mcp.tools.notes import create_note
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(ValueError, match="Notebook not accessible") as exc_info:
                 await _call(create_note, title="X", notebook_name="Personal", body="x")
 
             error_msg = str(exc_info.value).lower()
@@ -554,6 +610,7 @@ class TestErrorMessagePrivacy:
 # ===================================================================
 # 15. TAGS + ALLOWLIST interaction
 # ===================================================================
+
 
 class TestTagsWithAllowlist:
 
@@ -577,12 +634,14 @@ class TestTagsWithAllowlist:
         from joplin_mcp.tools.notes import create_note
         from joplin_mcp.tools.tags import create_tag, tag_note
 
-        r = await _call(create_note, title="BlockedTagTarget", notebook_name="Personal", body="x")
+        r = await _call(
+            create_note, title="BlockedTagTarget", notebook_name="Personal", body="x"
+        )
         nid = _extract_id(r)
         await _call(create_tag, title="e2e-al-blocked-tag")
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(tag_note, note_id=nid, tag_name="e2e-al-blocked-tag")
 
     @pytest.mark.asyncio
@@ -605,13 +664,15 @@ class TestTagsWithAllowlist:
         from joplin_mcp.tools.notes import create_note
         from joplin_mcp.tools.tags import create_tag, tag_note, untag_note
 
-        r = await _call(create_note, title="BlockedUntagTarget", notebook_name="Personal", body="x")
+        r = await _call(
+            create_note, title="BlockedUntagTarget", notebook_name="Personal", body="x"
+        )
         nid = _extract_id(r)
         await _call(create_tag, title="e2e-al-untag-blocked")
         await _call(tag_note, note_id=nid, tag_name="e2e-al-untag-blocked")
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(untag_note, note_id=nid, tag_name="e2e-al-untag-blocked")
 
     @pytest.mark.asyncio
@@ -620,17 +681,20 @@ class TestTagsWithAllowlist:
         from joplin_mcp.tools.notes import create_note
         from joplin_mcp.tools.tags import get_tags_by_note
 
-        r = await _call(create_note, title="BlockedTagQuery", notebook_name="Personal", body="x")
+        r = await _call(
+            create_note, title="BlockedTagQuery", notebook_name="Personal", body="x"
+        )
         nid = _extract_id(r)
 
         with _allowlist_config(["AI"]):
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(get_tags_by_note, note_id=nid)
 
 
 # ===================================================================
 # 16. MIXED PATTERNS (exact + glob + negation)
 # ===================================================================
+
 
 class TestMixedPatterns:
 
@@ -651,11 +715,15 @@ class TestMixedPatterns:
             r = await _call(create_note, title="MixedOK", notebook_name="AI", body="ok")
             assert "MixedOK" in r
 
-            r2 = await _call(create_note, title="MixedOK2", notebook_name="Work", body="ok")
+            r2 = await _call(
+                create_note, title="MixedOK2", notebook_name="Work", body="ok"
+            )
             assert "MixedOK2" in r2
 
             # Blocked notebooks
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="Notebook not accessible"):
                 await _call(create_note, title="No", notebook_name="Secret", body="no")
-            with pytest.raises(Exception):
-                await _call(create_note, title="No", notebook_name="Personal", body="no")
+            with pytest.raises(ValueError, match="Notebook not accessible"):
+                await _call(
+                    create_note, title="No", notebook_name="Personal", body="no"
+                )

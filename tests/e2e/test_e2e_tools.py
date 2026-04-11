@@ -3,6 +3,7 @@
 import re
 
 import pytest
+import requests
 
 pytestmark = pytest.mark.e2e
 
@@ -17,6 +18,7 @@ async def _call(tool, **kwargs):
 # Ping
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_e2e_ping():
     """Verify Joplin connection via the ping tool."""
@@ -30,6 +32,7 @@ async def test_e2e_ping():
 # ---------------------------------------------------------------------------
 # Notebooks
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_list_notebooks():
@@ -55,6 +58,7 @@ async def test_e2e_create_notebook(e2e_client):
 # ---------------------------------------------------------------------------
 # Notes — CRUD
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_create_and_get_note(e2e_client):
@@ -95,7 +99,9 @@ async def test_e2e_update_note(e2e_client):
     )
     note_id = _extract_id(create_result)
 
-    await _call(update_note, note_id=note_id, title="Updated Title", body="Updated body")
+    await _call(
+        update_note, note_id=note_id, title="Updated Title", body="Updated body"
+    )
 
     get_result = await _call(get_note, note_id=note_id)
     assert "Updated Title" in get_result
@@ -121,13 +127,14 @@ async def test_e2e_delete_note(e2e_client):
     assert "delete" in del_result.lower() or "success" in del_result.lower()
 
     # Attempting to get should fail
-    with pytest.raises(Exception):
+    with pytest.raises(requests.exceptions.HTTPError):
         e2e_client.get_note(note_id)
 
 
 # ---------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_find_notes(e2e_client):
@@ -150,6 +157,7 @@ async def test_e2e_find_notes(e2e_client):
 # ---------------------------------------------------------------------------
 # Tags workflow
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_tags_workflow(e2e_client):
@@ -192,6 +200,7 @@ async def test_e2e_tags_workflow(e2e_client):
 # Allowlist enforcement
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_e2e_allowlist_enforcement(e2e_client):
     """Create notebooks, configure allowlist, verify access control."""
@@ -205,12 +214,13 @@ async def test_e2e_allowlist_enforcement(e2e_client):
     await _call(create_notebook, title="E2E Blocked NB")
 
     restricted_config = JoplinMCPConfig(
-        token=e2e_client._token if hasattr(e2e_client, '_token') else "e2e_test_token",
+        token=e2e_client._token if hasattr(e2e_client, "_token") else "e2e_test_token",
         notebook_allowlist=["E2E Allowed NB"],
     )
 
-    with patch("joplin_mcp.tools.notes._module_config", restricted_config), \
-         patch("joplin_mcp.tools.notebooks._module_config", restricted_config):
+    with patch("joplin_mcp.tools.notes._module_config", restricted_config), patch(
+        "joplin_mcp.tools.notebooks._module_config", restricted_config
+    ):
 
         result = await _call(
             create_note,
@@ -220,7 +230,7 @@ async def test_e2e_allowlist_enforcement(e2e_client):
         )
         assert "Allowed Note" in result
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="Notebook not accessible"):
             await _call(
                 create_note,
                 title="Blocked Note",
@@ -236,6 +246,7 @@ async def test_e2e_allowlist_enforcement(e2e_client):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_id(tool_output: str) -> str:
     """Extract a 32-character hex Joplin ID from tool output."""
