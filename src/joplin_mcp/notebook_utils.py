@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from joplin_mcp.config import JoplinMCPConfig
@@ -170,7 +170,7 @@ def _build_allowlist_spec(
 
 def _build_compiled_entries(
     allowlist_entries: List[str],
-) -> List[tuple]:
+) -> List[Tuple[bool, pathspec.PathSpec]]:
     """Pre-compile per-entry PathSpec objects for negation checking.
 
     Each entry is decomposed into (is_negation, compiled_spec) so that
@@ -182,7 +182,7 @@ def _build_compiled_entries(
     Returns:
         List of (is_negation: bool, spec: PathSpec) tuples.
     """
-    compiled: List[tuple] = []
+    compiled: List[Tuple[bool, pathspec.PathSpec]] = []
     for entry in allowlist_entries:
         is_negation = entry.startswith("!")
         pattern = entry[1:] if is_negation else entry
@@ -286,7 +286,7 @@ def _matches_allowlist(
 
 def _has_negation_for_path(
     path: str,
-    compiled_entries: List[tuple],
+    compiled_entries: List[Tuple[bool, pathspec.PathSpec]],
 ) -> bool:
     """Check if any negation pattern in the allowlist specifically targets this path.
 
@@ -599,6 +599,9 @@ def _validate_allowlist_at_startup_inner(
         if path:
             path_to_id[path] = nb_id
 
+    # Build lowercase ID lookup for case-insensitive hex ID matching
+    lower_id_map: Dict[str, str] = {nb_id.lower(): nb_id for nb_id in nb_map}
+
     resolved_entries: List[str] = []
     unresolved_entries: List[str] = []
 
@@ -618,12 +621,7 @@ def _validate_allowlist_at_startup_inner(
         # Check if entry is a 32-char hex ID
         if _HEX_ID_RE.match(entry_stripped):
             # Normalize to lowercase for case-insensitive hex ID comparison
-            entry_lower = entry_stripped.lower()
-            matched_id = None
-            for nb_id in nb_map:
-                if nb_id.lower() == entry_lower:
-                    matched_id = nb_id
-                    break
+            matched_id = lower_id_map.get(entry_stripped.lower())
             if matched_id is not None:
                 path = _compute_notebook_path(
                     matched_id, nb_map, sep="/"
